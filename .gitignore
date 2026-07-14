@@ -1,3 +1,6 @@
+# Claude Code (sessões locais, não vai para o repo)
+.claude/
+
 # Maven
 target/
 !.mvn/wrapper/maven-wrapper.jar

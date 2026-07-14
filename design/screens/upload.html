@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RAG Platform — Upload</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+</head>
+<body class="min-h-screen bg-gray-50 dark:bg-gray-950 dark:text-gray-100">
+
+  <!-- Navbar -->
+  <nav class="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 sticky top-0 z-10">
+    <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-6">
+        <span class="font-semibold text-gray-900 dark:text-white">RAG Platform</span>
+        <div class="hidden sm:flex items-center gap-5 text-sm">
+          <a href="documentos.html" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white">Documentos</a>
+          <a href="upload.html" class="text-blue-600 dark:text-blue-400 font-medium">Upload</a>
+          <a href="chat.html" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white">Chat</a>
+          <a href="historico.html" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white">Histórico</a>
+        </div>
+      </div>
+      <button onclick="document.documentElement.classList.toggle('dark')"
+        class="p-1.5 rounded-md text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 text-xs">🌙</button>
+    </div>
+  </nav>
+
+  <div class="max-w-2xl mx-auto px-4 py-10">
+
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-1">Upload de Documento</h1>
+    <p class="text-sm text-gray-500 mb-8">Arquivos PDF até 50 MB. O processamento é assíncrono — você acompanha o progresso na lista de documentos.</p>
+
+    <!-- ─── ESTADO: DROPZONE (default) ───────────────────────────────────── -->
+    <div id="state-dropzone"
+      class="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-12 text-center hover:border-blue-400 dark:hover:border-blue-600 transition-colors cursor-pointer group">
+      <div class="flex flex-col items-center gap-4">
+        <div class="h-14 w-14 rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center group-hover:bg-blue-100 dark:group-hover:bg-blue-900/40 transition-colors">
+          <svg class="h-7 w-7 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+        </div>
+        <div>
+          <p class="font-medium text-gray-700 dark:text-gray-300">Arraste o PDF aqui</p>
+          <p class="text-sm text-gray-500 mt-1">ou <span class="text-blue-600 dark:text-blue-400 underline cursor-pointer">escolha um arquivo</span></p>
+        </div>
+        <p class="text-xs text-gray-400">Apenas PDF · Máximo 50 MB</p>
+      </div>
+    </div>
+
+    <!-- ─── ESTADO: ARQUIVO SELECIONADO ──────────────────────────────────── -->
+    <div id="state-selected" class="space-y-4 mt-6 hidden">
+      <div class="flex items-center gap-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+        <div class="h-10 w-10 rounded-lg bg-red-50 dark:bg-red-900/20 flex items-center justify-center flex-shrink-0">
+          <svg class="h-6 w-6 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M4 18h12V8l-4-4H4v14zm8-13l3 3h-3V5z"/>
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="font-medium text-sm text-gray-900 dark:text-white truncate">Contrato_Fornecedor_XYZ_2026.pdf</p>
+          <p class="text-xs text-gray-500 mt-0.5">3,2 MB</p>
+        </div>
+        <button class="text-gray-400 hover:text-red-500 p-1">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <button class="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors">
+        Iniciar upload e processamento
+      </button>
+    </div>
+
+    <!-- ─── ESTADO: ENVIANDO ──────────────────────────────────────────────── -->
+    <div id="state-uploading" class="mt-6 space-y-4 hidden">
+      <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+        <div class="flex items-center justify-between text-sm mb-3">
+          <span class="font-medium text-gray-700 dark:text-gray-300">Enviando arquivo…</span>
+          <span class="text-gray-500">68%</span>
+        </div>
+        <div class="h-2 rounded-full bg-gray-100 dark:bg-gray-800">
+          <div class="h-2 rounded-full bg-blue-500 transition-all" style="width: 68%"></div>
+        </div>
+        <p class="text-xs text-gray-400 mt-2">2,2 MB de 3,2 MB enviados</p>
+      </div>
+      <button disabled class="w-full py-3 rounded-xl bg-blue-400 text-white text-sm font-medium cursor-not-allowed flex items-center justify-center gap-2">
+        <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        Enviando…
+      </button>
+    </div>
+
+    <!-- ─── ESTADO: SUCESSO (202 Accepted) ───────────────────────────────── -->
+    <div id="state-success" class="mt-6 hidden">
+      <div class="bg-green-50 dark:bg-green-950 rounded-xl border border-green-200 dark:border-green-900 p-6 text-center">
+        <div class="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mx-auto mb-3">
+          <svg class="h-6 w-6 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+        </div>
+        <p class="font-semibold text-green-800 dark:text-green-300">Upload recebido!</p>
+        <p class="text-sm text-green-700 dark:text-green-400 mt-1">O documento está sendo processado em background.</p>
+        <p class="text-xs text-green-600 dark:text-green-500 mt-1 font-mono">ID: doc_7f3a9c12e4b0</p>
+        <div class="flex justify-center gap-3 mt-4">
+          <a href="documentos.html" class="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700">
+            Ver documentos
+          </a>
+          <button onclick="document.getElementById('state-success').classList.add('hidden'); document.getElementById('state-dropzone').classList.remove('hidden')"
+            class="px-4 py-2 rounded-lg border border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 text-sm font-medium hover:bg-green-100 dark:hover:bg-green-900">
+            Novo upload
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── ESTADO: ERRO ──────────────────────────────────────────────────── -->
+    <div id="state-error" class="mt-6 hidden">
+      <div class="bg-red-50 dark:bg-red-950 rounded-xl border border-red-200 dark:border-red-900 p-5">
+        <div class="flex items-start gap-3">
+          <svg class="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+          </svg>
+          <div>
+            <p class="font-medium text-sm text-red-800 dark:text-red-300">Falha no upload</p>
+            <p class="text-xs text-red-600 dark:text-red-400 mt-1">O arquivo excede o limite de 50 MB. Compacte o PDF e tente novamente.</p>
+          </div>
+        </div>
+      </div>
+      <button onclick="document.getElementById('state-error').classList.add('hidden'); document.getElementById('state-dropzone').classList.remove('hidden')"
+        class="w-full mt-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800">
+        Tentar novamente
+      </button>
+    </div>
+
+    <!-- Demonstração dos estados (dev helper) -->
+    <div class="mt-10 pt-8 border-t border-gray-200 dark:border-gray-800">
+      <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">Demonstrar estados</p>
+      <div class="flex flex-wrap gap-2">
+        <button onclick="showState('dropzone')" class="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">Dropzone</button>
+        <button onclick="showState('selected')" class="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">Arquivo selecionado</button>
+        <button onclick="showState('uploading')" class="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">Enviando</button>
+        <button onclick="showState('success')" class="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">Sucesso (202)</button>
+        <button onclick="showState('error')" class="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">Erro</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function showState(name) {
+      ['dropzone','selected','uploading','success','error'].forEach(s => {
+        document.getElementById('state-' + s)?.classList.add('hidden');
+      });
+      document.getElementById('state-' + name)?.classList.remove('hidden');
+    }
+  </script>
+
+</body>
+</html>

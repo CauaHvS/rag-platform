@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+/* Dark mode via classe .dark no elemento html */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Reset base */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

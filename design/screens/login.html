@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RAG Platform — Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+</head>
+<body class="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
+
+  <!-- Toggle dark mode (dev helper) -->
+  <button onclick="document.documentElement.classList.toggle('dark')"
+    class="fixed top-4 right-4 px-3 py-1 rounded-lg border border-gray-300 text-xs dark:border-gray-700 dark:text-gray-400 bg-white dark:bg-gray-900">
+    Dark mode
+  </button>
+
+  <div class="w-full max-w-sm">
+
+    <!-- Logo / produto -->
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-blue-600 mb-4">
+        <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      </div>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">RAG Platform</h1>
+      <p class="text-sm text-gray-500 mt-1">Perguntas inteligentes sobre seus documentos</p>
+    </div>
+
+    <!-- Abas Login / Cadastro -->
+    <div class="flex rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-900 p-1 mb-6">
+      <button id="tab-login"
+        onclick="showTab('login')"
+        class="flex-1 py-2 rounded-lg text-sm font-medium bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm transition-all">
+        Entrar
+      </button>
+      <button id="tab-register"
+        onclick="showTab('register')"
+        class="flex-1 py-2 rounded-lg text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all">
+        Cadastrar
+      </button>
+    </div>
+
+    <!-- Formulário de Login -->
+    <form id="form-login" class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-6 space-y-4">
+
+      <div class="space-y-1.5">
+        <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">E-mail</label>
+        <input id="email" type="email" value="joao.silva@empresa.com" autocomplete="email"
+          class="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" />
+      </div>
+
+      <div class="space-y-1.5">
+        <div class="flex items-center justify-between">
+          <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Senha</label>
+          <a href="#" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">Esqueci a senha</a>
+        </div>
+        <input id="password" type="password" value="••••••••" autocomplete="current-password"
+          class="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" />
+      </div>
+
+      <!-- Estado de erro (credenciais inválidas) -->
+      <div class="rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 px-3 py-2.5 hidden" id="login-error">
+        <p class="text-xs text-red-600 dark:text-red-400">E-mail ou senha incorretos. Tente novamente.</p>
+      </div>
+
+      <button type="submit"
+        class="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors">
+        Entrar
+      </button>
+
+      <!-- Estado de carregando -->
+      <button type="button" class="w-full py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium flex items-center justify-center gap-2 opacity-80 hidden">
+        <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        Entrando…
+      </button>
+
+    </form>
+
+    <!-- Formulário de Cadastro (oculto por padrão) -->
+    <form id="form-register" class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-6 space-y-4 hidden">
+
+      <div class="space-y-1.5">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nome completo</label>
+        <input type="text" value="João Silva" autocomplete="name"
+          class="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" />
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">E-mail</label>
+        <input type="email" placeholder="voce@empresa.com" autocomplete="email"
+          class="w-full px-3 py-2.5 rounded-lg border border-red-400 dark:border-red-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-400 transition" />
+        <p class="text-xs text-red-500">E-mail inválido.</p>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Senha</label>
+        <input type="password" placeholder="Mínimo de 8 caracteres" autocomplete="new-password"
+          class="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" />
+        <p class="text-xs text-gray-400">Mínimo de 8 caracteres com letras e números.</p>
+      </div>
+
+      <button type="submit"
+        class="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors">
+        Criar conta
+      </button>
+
+    </form>
+
+    <p class="text-center text-xs text-gray-400 mt-6">
+      Ao entrar, você concorda com os
+      <a href="#" class="text-blue-600 dark:text-blue-400 hover:underline">Termos de Uso</a>.
+    </p>
+
+  </div>
+
+  <script>
+    function showTab(tab) {
+      const isLogin = tab === 'login';
+      document.getElementById('form-login').classList.toggle('hidden', !isLogin);
+      document.getElementById('form-register').classList.toggle('hidden', isLogin);
+      document.getElementById('tab-login').className = isLogin
+        ? 'flex-1 py-2 rounded-lg text-sm font-medium bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm transition-all'
+        : 'flex-1 py-2 rounded-lg text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all';
+      document.getElementById('tab-register').className = !isLogin
+        ? 'flex-1 py-2 rounded-lg text-sm font-medium bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm transition-all'
+        : 'flex-1 py-2 rounded-lg text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all';
+    }
+  </script>
+
+</body>
+</html>

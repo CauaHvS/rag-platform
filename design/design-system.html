@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RAG Platform — Design System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 p-8 font-sans">
+
+  <div class="max-w-4xl mx-auto space-y-12">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold">RAG Platform</h1>
+        <p class="text-gray-500 mt-1">Design System — tokens, paleta, tipografia e componentes</p>
+      </div>
+      <button onclick="document.documentElement.classList.toggle('dark')"
+        class="px-3 py-1.5 rounded-lg border border-gray-300 text-sm dark:border-gray-700">
+        Alternar dark mode
+      </button>
+    </div>
+
+    <!-- Paleta de cores -->
+    <section>
+      <h2 class="text-xl font-semibold mb-4">Paleta de cores</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+        <div>
+          <p class="text-xs font-medium text-gray-500 mb-2">Primária</p>
+          <div class="space-y-1">
+            <div class="h-10 rounded-md bg-blue-600 flex items-center px-3 text-xs text-white font-mono">blue-600</div>
+            <div class="h-8 rounded-md bg-blue-500 flex items-center px-3 text-xs text-white font-mono">blue-500</div>
+            <div class="h-8 rounded-md bg-blue-100 flex items-center px-3 text-xs text-blue-700 font-mono">blue-100</div>
+          </div>
+        </div>
+
+        <div>
+          <p class="text-xs font-medium text-gray-500 mb-2">Neutra</p>
+          <div class="space-y-1">
+            <div class="h-10 rounded-md bg-gray-900 flex items-center px-3 text-xs text-white font-mono dark:bg-gray-100 dark:text-gray-900">gray-900</div>
+            <div class="h-8 rounded-md bg-gray-600 flex items-center px-3 text-xs text-white font-mono">gray-600</div>
+            <div class="h-8 rounded-md bg-gray-200 flex items-center px-3 text-xs text-gray-700 font-mono dark:bg-gray-800 dark:text-gray-300">gray-200/800</div>
+          </div>
+        </div>
+
+        <div>
+          <p class="text-xs font-medium text-gray-500 mb-2">Semântica</p>
+          <div class="space-y-1">
+            <div class="h-8 rounded-md bg-green-500 flex items-center px-3 text-xs text-white font-mono">green-500 (sucesso)</div>
+            <div class="h-8 rounded-md bg-red-500 flex items-center px-3 text-xs text-white font-mono">red-500 (erro)</div>
+            <div class="h-8 rounded-md bg-yellow-400 flex items-center px-3 text-xs text-gray-800 font-mono">yellow-400 (aviso)</div>
+          </div>
+        </div>
+
+        <div>
+          <p class="text-xs font-medium text-gray-500 mb-2">Status ingestão</p>
+          <div class="space-y-1">
+            <div class="h-7 rounded-full bg-gray-100 text-gray-600 flex items-center px-3 text-xs font-medium">PENDING</div>
+            <div class="h-7 rounded-full bg-blue-100 text-blue-700 flex items-center px-3 text-xs font-medium">EXTRACTING / CHUNKING / EMBEDDING</div>
+            <div class="h-7 rounded-full bg-green-100 text-green-700 flex items-center px-3 text-xs font-medium">READY</div>
+            <div class="h-7 rounded-full bg-red-100 text-red-700 flex items-center px-3 text-xs font-medium">FAILED</div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Tipografia -->
+    <section>
+      <h2 class="text-xl font-semibold mb-4">Tipografia</h2>
+      <div class="space-y-3 border rounded-xl p-6 bg-white dark:bg-gray-900 dark:border-gray-800">
+        <p class="text-3xl font-bold text-gray-900 dark:text-white">Heading 1 — 30px bold</p>
+        <p class="text-2xl font-semibold text-gray-900 dark:text-white">Heading 2 — 24px semibold</p>
+        <p class="text-xl font-semibold text-gray-800 dark:text-gray-100">Heading 3 — 20px semibold</p>
+        <p class="text-base text-gray-700 dark:text-gray-300">Body — 16px regular. Fonte: system-ui. Lorem ipsum dolor sit amet, consectetur adipiscing.</p>
+        <p class="text-sm text-gray-600 dark:text-gray-400">Small — 14px. Usado em labels, captions, badges.</p>
+        <p class="text-xs font-mono text-gray-500 dark:text-gray-500">Mono — 12px. Usado em timestamps, IDs, trechos de código.</p>
+      </div>
+    </section>
+
+    <!-- Componentes -->
+    <section>
+      <h2 class="text-xl font-semibold mb-4">Componentes</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- Botões -->
+        <div class="border rounded-xl p-6 bg-white dark:bg-gray-900 dark:border-gray-800 space-y-3">
+          <p class="text-sm font-medium text-gray-500">Botões</p>
+          <div class="flex flex-wrap gap-3">
+            <button class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">Primário</button>
+            <button class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">Secundário</button>
+            <button class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700">Destrutivo</button>
+            <button class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium opacity-50 cursor-not-allowed">Desabilitado</button>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <button class="px-3 py-1.5 rounded-md bg-blue-600 text-white text-xs font-medium">Pequeno</button>
+            <button class="px-5 py-3 rounded-xl bg-blue-600 text-white text-base font-medium">Grande</button>
+          </div>
+        </div>
+
+        <!-- Inputs -->
+        <div class="border rounded-xl p-6 bg-white dark:bg-gray-900 dark:border-gray-800 space-y-3">
+          <p class="text-sm font-medium text-gray-500">Inputs</p>
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">E-mail</label>
+            <input type="email" value="usuario@empresa.com" class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
+          </div>
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-red-600">E-mail (erro)</label>
+            <input type="email" value="usuario@" class="w-full px-3 py-2 rounded-lg border border-red-400 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 dark:bg-gray-800 dark:text-white" />
+            <p class="text-xs text-red-500">E-mail inválido.</p>
+          </div>
+        </div>
+
+        <!-- Badges de status -->
+        <div class="border rounded-xl p-6 bg-white dark:bg-gray-900 dark:border-gray-800 space-y-3">
+          <p class="text-sm font-medium text-gray-500">Badges de status de ingestão</p>
+          <div class="flex flex-wrap gap-2">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+              <span class="h-1.5 w-1.5 rounded-full bg-gray-400"></span>PENDING
+            </span>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+              <span class="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>EXTRACTING
+            </span>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+              <span class="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>CHUNKING
+            </span>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+              <span class="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>EMBEDDING
+            </span>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+              <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>READY
+            </span>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+              <span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>FAILED
+            </span>
+          </div>
+        </div>
+
+        <!-- Cards -->
+        <div class="border rounded-xl p-6 bg-white dark:bg-gray-900 dark:border-gray-800 space-y-3">
+          <p class="text-sm font-medium text-gray-500">Card</p>
+          <div class="rounded-xl border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-700 p-4 shadow-sm hover:shadow-md transition-shadow">
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="font-medium text-sm text-gray-900 dark:text-white">Contrato de Prestação de Serviços 2024</p>
+                <p class="text-xs text-gray-500 mt-0.5">PDF · 2,4 MB · 47 páginas · 12 jul 2026</p>
+              </div>
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>READY
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Skeleton -->
+        <div class="border rounded-xl p-6 bg-white dark:bg-gray-900 dark:border-gray-800 space-y-3">
+          <p class="text-sm font-medium text-gray-500">Skeleton (carregando)</p>
+          <div class="space-y-3">
+            <div class="h-4 rounded bg-gray-200 dark:bg-gray-700 animate-pulse w-3/4"></div>
+            <div class="h-4 rounded bg-gray-200 dark:bg-gray-700 animate-pulse w-full"></div>
+            <div class="h-4 rounded bg-gray-200 dark:bg-gray-700 animate-pulse w-5/6"></div>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div class="border rounded-xl p-6 bg-white dark:bg-gray-900 dark:border-gray-800">
+          <p class="text-sm font-medium text-gray-500 mb-3">Estado vazio</p>
+          <div class="flex flex-col items-center justify-center py-8 text-center">
+            <div class="h-12 w-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-3">
+              <svg class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <p class="font-medium text-sm text-gray-700 dark:text-gray-300">Nenhum documento ainda</p>
+            <p class="text-xs text-gray-500 mt-1">Faça upload de um PDF para começar.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Espaçamento -->
+    <section>
+      <h2 class="text-xl font-semibold mb-4">Espaçamento (múltiplos de 4px)</h2>
+      <div class="flex items-end gap-4">
+        <div class="flex flex-col items-center gap-1"><div class="w-4 bg-blue-200 dark:bg-blue-800" style="height:4px"></div><span class="text-xs text-gray-400">1</span></div>
+        <div class="flex flex-col items-center gap-1"><div class="w-4 bg-blue-300 dark:bg-blue-700" style="height:8px"></div><span class="text-xs text-gray-400">2</span></div>
+        <div class="flex flex-col items-center gap-1"><div class="w-4 bg-blue-400 dark:bg-blue-600" style="height:12px"></div><span class="text-xs text-gray-400">3</span></div>
+        <div class="flex flex-col items-center gap-1"><div class="w-4 bg-blue-500" style="height:16px"></div><span class="text-xs text-gray-400">4</span></div>
+        <div class="flex flex-col items-center gap-1"><div class="w-4 bg-blue-600" style="height:24px"></div><span class="text-xs text-gray-400">6</span></div>
+        <div class="flex flex-col items-center gap-1"><div class="w-4 bg-blue-700" style="height:32px"></div><span class="text-xs text-gray-400">8</span></div>
+        <div class="flex flex-col items-center gap-1"><div class="w-4 bg-blue-800" style="height:48px"></div><span class="text-xs text-gray-400">12</span></div>
+        <div class="flex flex-col items-center gap-1"><div class="w-4 bg-blue-900" style="height:64px"></div><span class="text-xs text-gray-400">16</span></div>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

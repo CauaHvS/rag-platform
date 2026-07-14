@@ -1,0 +1,36 @@
+services:
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ragplatform-postgres
+    environment:
+      POSTGRES_DB: ragplatform
+      POSTGRES_USER: ragplatform
+      POSTGRES_PASSWORD: ragplatform
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ragplatform -d ragplatform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: ragplatform-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # backend e frontend serão adicionados nas fases seguintes
+  # por enquanto sobe só a infra: docker compose up -d postgres redis
+
+volumes:
+  postgres_data:

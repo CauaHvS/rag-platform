@@ -1,0 +1,44 @@
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+*.jar
+*.war
+*.ear
+
+# Spring Boot
+*.pid
+
+# IDE
+.idea/
+.vscode/
+.vs/
+*.iml
+*.iws
+*.ipr
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Segredos — NUNCA commite chaves de API
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Logs
+*.log
+logs/
+
+# Docker volumes locais
+postgres_data/

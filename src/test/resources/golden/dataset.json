@@ -1,0 +1,52 @@
+{
+  "description": "Golden set para avaliação de qualidade de recuperação RAG. Cada entrada tem uma pergunta e os trechos relevantes esperados (identificados pelo campo 'expectedTerms' — termos que DEVEM aparecer no chunk recuperado no top-k).",
+  "documents": [
+    {
+      "id": "doc_rnn",
+      "filename": "redes_neurais.txt",
+      "content": "Redes neurais artificiais são modelos computacionais inspirados no funcionamento do cérebro humano. Compostas por neurônios artificiais organizados em camadas, estas redes aprendem padrões a partir de dados de treinamento. O processo de aprendizado ocorre através de ajustes nos pesos das conexões entre neurônios, utilizando algoritmos como backpropagation. Redes profundas, com múltiplas camadas ocultas, são capazes de aprender representações hierárquicas dos dados, identificando características cada vez mais abstratas em cada nível da rede. Aplicações incluem reconhecimento de imagem, processamento de linguagem natural e sistemas de recomendação."
+    },
+    {
+      "id": "doc_pgvector",
+      "filename": "pgvector.txt",
+      "content": "PgVector é uma extensão do PostgreSQL que adiciona suporte a vetores de alta dimensão e operações de similaridade. Permite armazenar embeddings diretamente no banco de dados relacional e executar buscas de vizinhos mais próximos usando índices HNSW ou IVFFlat. A distância coseno e a distância euclidiana são as métricas mais utilizadas. A integração com o ecossistema PostgreSQL simplifica arquiteturas RAG ao eliminar a necessidade de um banco vetorial separado como Pinecone ou Weaviate. Índices HNSW oferecem melhor recall e velocidade de consulta para conjuntos de dados grandes."
+    },
+    {
+      "id": "doc_rag",
+      "filename": "rag.txt",
+      "content": "Retrieval-Augmented Generation, ou RAG, é uma técnica que combina recuperação de informação com geração de texto por modelos de linguagem. O pipeline RAG inicia com a conversão da pergunta em um vetor de embedding, seguida de busca semântica nos documentos indexados. Os trechos mais relevantes são inseridos no contexto do prompt enviado ao modelo de linguagem. Esta abordagem reduz alucinações e permite que o modelo responda com base em documentos privados e atualizados, sem necessidade de fine-tuning. A qualidade da recuperação é fundamental para a qualidade da resposta gerada."
+    }
+  ],
+  "queries": [
+    {
+      "id": "q1",
+      "question": "Como funciona o backpropagation em redes neurais?",
+      "documentId": "doc_rnn",
+      "expectedTerms": ["backpropagation", "neurônios", "pesos"]
+    },
+    {
+      "id": "q2",
+      "question": "O que é PgVector e quais índices ele suporta?",
+      "documentId": "doc_pgvector",
+      "expectedTerms": ["PgVector", "HNSW", "IVFFlat"]
+    },
+    {
+      "id": "q3",
+      "question": "Como o RAG reduz alucinações em modelos de linguagem?",
+      "documentId": "doc_rag",
+      "expectedTerms": ["RAG", "alucinações", "embedding"]
+    },
+    {
+      "id": "q4",
+      "question": "Quais são as aplicações de redes neurais profundas?",
+      "documentId": "doc_rnn",
+      "expectedTerms": ["redes profundas", "reconhecimento", "camadas ocultas"]
+    },
+    {
+      "id": "q5",
+      "question": "Qual a vantagem do PgVector sobre bancos vetoriais separados?",
+      "documentId": "doc_pgvector",
+      "expectedTerms": ["PostgreSQL", "Pinecone", "Weaviate"]
+    }
+  ]
+}

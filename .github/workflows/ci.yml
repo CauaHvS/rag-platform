@@ -24,7 +24,9 @@ jobs:
 
       - name: Build e testes de integração
         # mvn verify roda: compile → test (unit) → package → failsafe (ITs com Testcontainers)
-        run: ./mvnw verify -q
+        run: |
+          chmod +x mvnw
+          ./mvnw verify -q
 
   frontend:
     name: Frontend — Build

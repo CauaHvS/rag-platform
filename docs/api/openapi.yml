@@ -1,0 +1,192 @@
+openapi: "3.1.0"
+info:
+  title: RAG Platform API
+  version: "0.1.0"
+  description: API para a plataforma RAG de perguntas e respostas sobre documentos privados.
+
+servers:
+  - url: http://localhost:8080
+    description: Desenvolvimento local
+
+tags:
+  - name: auth
+    description: Registro e autenticação de usuários
+
+paths:
+
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Registra um novo usuário
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+            example:
+              name: "João Silva"
+              email: "joao@empresa.com"
+              password: "senha1234"
+      responses:
+        "201":
+          description: Usuário criado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Dados inválidos (validação)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ValidationProblem"
+        "409":
+          description: E-mail já cadastrado
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Autentica um usuário existente
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            example:
+              email: "joao@empresa.com"
+              password: "senha1234"
+      responses:
+        "200":
+          description: Login realizado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Credenciais inválidas
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /api/me:
+    get:
+      tags: [auth]
+      summary: Retorna dados do usuário autenticado
+      operationId: me
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dados do usuário
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserInfo"
+        "401":
+          description: Não autenticado
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: "João Silva"
+        email:
+          type: string
+          format: email
+          example: "joao@empresa.com"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+          example: "senha1234"
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "joao@empresa.com"
+        password:
+          type: string
+          example: "senha1234"
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT Bearer token
+        user:
+          $ref: "#/components/schemas/UserInfo"
+
+    UserInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+
+    Problem:
+      type: object
+      description: RFC 9457 Problem Details
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+    ValidationProblem:
+      allOf:
+        - $ref: "#/components/schemas/Problem"
+        - type: object
+          properties:
+            errors:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string

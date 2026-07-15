@@ -1,34 +1,37 @@
 import axios from 'axios'
+import { getToken, removeToken } from '@/lib/auth'
 
 /**
  * Instância Axios compartilhada.
- * - Base URL via variável de ambiente (fallback para /api em dev — repassado pelo proxy Vite)
- * - Content-Type padrão JSON
- * - Interceptor de request: injeta o token JWT quando presente (Fatia 1.1)
- * - Interceptor de response: trata 401 globalmente (Fatia 1.1)
+ * - baseURL vazio: usa caminhos relativos (/auth/**, /api/**, /actuator/**)
+ *   repassados pelo proxy Vite em dev; em prod ficam no mesmo domínio.
+ * - Interceptor de request: injeta o token JWT quando presente.
+ * - Interceptor de response: em 401 limpa o token e redireciona para /login.
  */
 export const http = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api',
+  baseURL: '',
   headers: { 'Content-Type': 'application/json' },
   timeout: 30_000,
 })
 
-// Injeta JWT no header Authorization (preenchido na Fatia 1.1)
 http.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
+  const token = getToken()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
 
-// Trata erro 401 globalmente (logout + redirect na Fatia 1.1)
 http.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token')
-      // Redirect para /login será implementado na Fatia 1.1
+      removeToken()
+      // Redireciona para login quando o token expira ou é inválido.
+      // Usa replace para não acumular o histórico.
+      if (window.location.pathname !== '/login') {
+        window.location.replace('/login')
+      }
     }
     return Promise.reject(error)
   },

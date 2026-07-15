@@ -31,6 +31,11 @@ spring:
     virtual:
       enabled: true
 
+  # ProblemDetail (RFC 9457) habilitado para todos os endpoints Spring MVC
+  mvc:
+    problemdetails:
+      enabled: true
+
 server:
   port: ${SERVER_PORT:8080}
 
@@ -42,6 +47,21 @@ management:
   endpoint:
     health:
       show-details: always
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  security:
+    jwt:
+      # Base64 de pelo menos 32 bytes para HS256. Em prod defina JWT_SECRET.
+      secret: ${JWT_SECRET:cmFncGxhdGZvcm0tZGV2LXNlY3JldC1tdXN0LWJlLTMyLWJ5dGVz}
+      expiration-ms: ${JWT_EXPIRATION_MS:86400000}  # 24h
 
 logging:
   level:

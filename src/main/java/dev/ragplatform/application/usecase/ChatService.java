@@ -15,6 +15,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 /**
  * Caso de uso de chat RAG.
@@ -53,6 +54,26 @@ public class ChatService {
         String answer = chatProvider.chat(systemPrompt, question);
 
         return new ChatAnswer(answer, sources);
+    }
+
+    /**
+     * Passo 1 do pipeline streaming: embed query + busca vetorial + monta prompt.
+     * Não faz chamada ao LLM — retorna contexto pronto para streamTokens().
+     */
+    public ChatStreamContext prepareStream(UUID ownerId, String question, int k) {
+        log.info("Chat stream prepare — ownerId={} k={}", ownerId, k);
+        float[] queryEmbedding = embeddingProvider.embedQuery(question);
+        List<SimilarChunk> sources = vectorRepository.findSimilar(ownerId, queryEmbedding, k);
+        String systemPrompt = promptTemplate.replace("{context}", buildContext(sources));
+        return new ChatStreamContext(sources, systemPrompt);
+    }
+
+    /**
+     * Passo 2 do pipeline streaming: chama o LLM em modo stream.
+     * O caller é responsável por fechar o Stream retornado (try-with-resources).
+     */
+    public Stream<String> streamTokens(String systemPrompt, String question) {
+        return chatProvider.stream(systemPrompt, question);
     }
 
     private String buildContext(List<SimilarChunk> sources) {

@@ -1,5 +1,6 @@
 package dev.ragplatform.infrastructure.security;
 
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -38,6 +39,9 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(e -> e.authenticationEntryPoint(authEntryPoint))
             .authorizeHttpRequests(auth -> auth
+                // Dispatches internos do servlet container (ASYNC/ERROR) não carregam
+                // SecurityContext do thread original — permitir para não abortar SSE/async
+                .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                 // Rotas públicas
                 .requestMatchers("/auth/**").permitAll()
                 // ARMADILHA: /swagger-ui.html precisa ser listado separado de /swagger-ui/**

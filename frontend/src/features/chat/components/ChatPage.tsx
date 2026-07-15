@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod/v4'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Send, FileText, ChevronDown, ChevronUp } from 'lucide-react'
-import { useChat } from '../api/useChat'
+import { Send, FileText, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react'
+import { useChatStream } from '../api/useChatStream'
 import type { SourceResponse } from '../types'
 
 const schema = z.object({
@@ -18,11 +18,12 @@ export function ChatPage() {
     resolver: zodResolver(schema),
     defaultValues: { question: '', k: 5 },
   })
-  const chat = useChat()
+  const { answer, sources, isStreaming, error, hasResult, startStream, reset } = useChatStream()
   const [expandedSource, setExpandedSource] = useState<string | null>(null)
 
   const onSubmit = (data: FormValues) => {
-    chat.mutate({ question: data.question, k: data.k })
+    setExpandedSource(null)
+    startStream(data.question, data.k)
   }
 
   return (
@@ -30,11 +31,11 @@ export function ChatPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Chat com Documentos</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Faça perguntas sobre seus documentos. O sistema busca os trechos mais relevantes e gera uma resposta.
+          Faça perguntas sobre seus documentos. As fontes aparecem antes da resposta ser gerada.
         </p>
       </div>
 
-      {/* Formulário de pergunta */}
+      {/* Formulário */}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
         <div>
           <label htmlFor="question" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -60,7 +61,6 @@ export function ChatPage() {
             <select
               id="k"
               {...register('k', { valueAsNumber: true })}
-
               className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white"
             >
               {[3, 5, 10, 20].map((v) => (
@@ -69,53 +69,52 @@ export function ChatPage() {
             </select>
           </div>
 
-          <button
-            type="submit"
-            disabled={chat.isPending}
-            className="ml-auto flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            <Send className="h-4 w-4" />
-            {chat.isPending ? 'Consultando...' : 'Perguntar'}
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            {hasResult && !isStreaming && (
+              <button
+                type="button"
+                onClick={reset}
+                className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Limpar
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={isStreaming}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              <Send className="h-4 w-4" />
+              {isStreaming ? 'Gerando...' : 'Perguntar'}
+            </button>
+          </div>
         </div>
       </form>
 
       {/* Erro */}
-      {chat.isError && (
+      {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-400">
-          Erro ao consultar: {chat.error.message}
+          Erro ao consultar: {error}
         </div>
       )}
 
-      {/* Resposta */}
-      {chat.data && (
+      {/* Fontes — aparecem assim que chegam, antes da resposta terminar */}
+      {hasResult && (
         <div className="space-y-4">
-          {/* Resposta do LLM */}
-          <div className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
-            <h2 className="mb-3 text-sm font-semibold text-gray-500 uppercase tracking-wide dark:text-gray-400">
-              Resposta
-            </h2>
-            <p className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
-              {chat.data.answer}
-            </p>
-          </div>
-
-          {/* Fontes */}
-          {chat.data.sources.length > 0 ? (
+          {sources.length > 0 ? (
             <div className="space-y-2">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide dark:text-gray-400">
-                Fontes ({chat.data.sources.length} trechos)
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Fontes ({sources.length} trechos)
               </h2>
-              {chat.data.sources.map((source, i) => (
+              {sources.map((source, i) => (
                 <SourceCard
                   key={source.chunkId}
                   index={i + 1}
                   source={source}
                   expanded={expandedSource === source.chunkId}
                   onToggle={() =>
-                    setExpandedSource(
-                      expandedSource === source.chunkId ? null : source.chunkId
-                    )
+                    setExpandedSource(expandedSource === source.chunkId ? null : source.chunkId)
                   }
                 />
               ))}
@@ -125,6 +124,19 @@ export function ChatPage() {
               Nenhum trecho relevante encontrado nos seus documentos.
             </p>
           )}
+
+          {/* Resposta — cresce token a token */}
+          <div className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              Resposta
+            </h2>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+              {answer}
+              {isStreaming && (
+                <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-blue-500" />
+              )}
+            </p>
+          </div>
         </div>
       )}
     </div>
@@ -143,7 +155,6 @@ function SourceCard({
   onToggle: () => void
 }) {
   const similarityPercent = Math.round(source.similarity * 100)
-  const preview = source.content.slice(0, 120)
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
@@ -156,8 +167,8 @@ function SourceCard({
           {index}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <FileText className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+          <div className="mb-1 flex items-center gap-2">
+            <FileText className="h-3.5 w-3.5 shrink-0 text-gray-400" />
             <span className="truncate text-xs text-gray-500 dark:text-gray-400">
               Documento {source.documentId.slice(0, 8)}…
             </span>
@@ -165,8 +176,8 @@ function SourceCard({
               {similarityPercent}% relevante
             </span>
           </div>
-          <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
-            {expanded ? source.content : preview + (source.content.length > 120 ? '…' : '')}
+          <p className="line-clamp-2 text-xs text-gray-600 dark:text-gray-400">
+            {expanded ? source.content : source.content.slice(0, 120) + (source.content.length > 120 ? '…' : '')}
           </p>
         </div>
         {expanded ? (

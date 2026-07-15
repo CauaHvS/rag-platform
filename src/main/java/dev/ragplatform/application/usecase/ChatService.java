@@ -7,6 +7,8 @@ import dev.ragplatform.domain.port.out.ChatProvider;
 import dev.ragplatform.domain.port.out.ChatTurnRepository;
 import dev.ragplatform.domain.port.out.EmbeddingProvider;
 import dev.ragplatform.domain.port.out.VectorRepository;
+import dev.ragplatform.infrastructure.ai.cache.EmbeddingQueryCache;
+import dev.ragplatform.infrastructure.observability.AiMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
@@ -35,23 +37,29 @@ public class ChatService {
     private final VectorRepository vectorRepository;
     private final ChatProvider chatProvider;
     private final ChatTurnRepository chatTurnRepository;
+    private final EmbeddingQueryCache embeddingQueryCache;
+    private final AiMetrics aiMetrics;
     private final String promptTemplate;
 
     public ChatService(EmbeddingProvider embeddingProvider,
                        VectorRepository vectorRepository,
                        ChatProvider chatProvider,
-                       ChatTurnRepository chatTurnRepository) {
+                       ChatTurnRepository chatTurnRepository,
+                       EmbeddingQueryCache embeddingQueryCache,
+                       AiMetrics aiMetrics) {
         this.embeddingProvider = embeddingProvider;
         this.vectorRepository = vectorRepository;
         this.chatProvider = chatProvider;
         this.chatTurnRepository = chatTurnRepository;
+        this.embeddingQueryCache = embeddingQueryCache;
+        this.aiMetrics = aiMetrics;
         this.promptTemplate = loadPromptTemplate();
     }
 
     public ChatAnswer chat(UUID ownerId, String question, int k) {
         log.info("Chat RAG — ownerId={} k={} question.length={}", ownerId, k, question.length());
 
-        float[] queryEmbedding = embeddingProvider.embedQuery(question);
+        float[] queryEmbedding = cachedEmbedQuery(question);
         List<SimilarChunk> sources = vectorRepository.findSimilar(ownerId, queryEmbedding, k);
 
         log.debug("Chunks recuperados: {}", sources.size());
@@ -60,6 +68,7 @@ public class ChatService {
         String answer = chatProvider.chat(systemPrompt, question);
 
         chatTurnRepository.save(new ChatTurn(null, ownerId, question, answer, Instant.now()));
+        aiMetrics.recordChatCall(question, answer);
 
         return new ChatAnswer(answer, sources);
     }
@@ -70,7 +79,7 @@ public class ChatService {
      */
     public ChatStreamContext prepareStream(UUID ownerId, String question, int k) {
         log.info("Chat stream prepare — ownerId={} k={}", ownerId, k);
-        float[] queryEmbedding = embeddingProvider.embedQuery(question);
+        float[] queryEmbedding = cachedEmbedQuery(question);
         List<SimilarChunk> sources = vectorRepository.findSimilar(ownerId, queryEmbedding, k);
         String systemPrompt = promptTemplate.replace("{context}", buildContext(sources));
         return new ChatStreamContext(sources, systemPrompt);
@@ -84,14 +93,25 @@ public class ChatService {
         return chatProvider.stream(systemPrompt, question);
     }
 
-    /** Persiste um turno de chat originado pelo streaming (chamado pelo controller após acumular a resposta). */
+    /** Persiste um turno de chat originado pelo streaming e registra métricas. */
     public void saveTurn(UUID ownerId, String question, String answer) {
         chatTurnRepository.save(new ChatTurn(null, ownerId, question, answer, Instant.now()));
+        aiMetrics.recordChatCall(question, answer);
     }
 
     /** Retorna o histórico de turnos do usuário, do mais recente ao mais antigo. */
     public List<ChatTurn> getHistory(UUID ownerId) {
         return chatTurnRepository.findByOwner(ownerId);
+    }
+
+    /** Retorna embedding da query, usando cache Redis quando disponível. */
+    private float[] cachedEmbedQuery(String question) {
+        return embeddingQueryCache.get(question).orElseGet(() -> {
+            float[] embedding = embeddingProvider.embedQuery(question);
+            embeddingQueryCache.put(question, embedding);
+            aiMetrics.recordEmbeddingCall(1);
+            return embedding;
+        });
     }
 
     private String buildContext(List<SimilarChunk> sources) {

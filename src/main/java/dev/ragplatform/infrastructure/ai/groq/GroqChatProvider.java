@@ -1,12 +1,16 @@
 package dev.ragplatform.infrastructure.ai.groq;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.ragplatform.domain.exception.AiUnavailableException;
 import dev.ragplatform.domain.port.out.ChatProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Recover;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -63,6 +67,11 @@ public class GroqChatProvider implements ChatProvider {
     // ── Bloqueante ────────────────────────────────────────────────────────────
 
     @Override
+    @Retryable(
+            retryFor = {RuntimeException.class},
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 500, multiplier = 2, maxDelay = 4000)
+    )
     public String chat(String systemPrompt, String userMessage) {
         var request = new SyncRequest(model,
                 List.of(new Message("system", systemPrompt), new Message("user", userMessage)),
@@ -124,6 +133,12 @@ public class GroqChatProvider implements ChatProvider {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Streaming Groq interrompido", e);
         }
+    }
+
+    @Recover
+    public String chatFallback(RuntimeException ex, String systemPrompt, String userMessage) {
+        log.error("Groq chat indisponível após retries: {}", ex.getMessage());
+        throw new AiUnavailableException("LLM indisponível após 3 tentativas.", ex);
     }
 
     private String extractToken(String jsonChunk) {

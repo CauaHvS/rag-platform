@@ -1,5 +1,6 @@
 package dev.ragplatform.infrastructure.web;
 
+import dev.ragplatform.domain.exception.AiUnavailableException;
 import dev.ragplatform.domain.exception.DocumentNotFoundException;
 import dev.ragplatform.domain.exception.EmailAlreadyTakenException;
 import dev.ragplatform.domain.exception.StorageException;
@@ -107,6 +108,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 HttpStatus.UNAUTHORIZED, "E-mail ou senha incorretos.");
         problem.setTitle("Credenciais inválidas");
         problem.setType(URI.create("https://ragplatform.dev/errors/unauthorized"));
+        return problem;
+    }
+
+    /** 503 — provedor de IA indisponível após todas as tentativas de retry */
+    @ExceptionHandler(AiUnavailableException.class)
+    ProblemDetail handleAiUnavailable(AiUnavailableException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "O serviço de IA está temporariamente indisponível. Tente novamente em instantes.");
+        problem.setTitle("IA indisponível");
+        problem.setType(URI.create("https://ragplatform.dev/errors/ai-unavailable"));
         return problem;
     }
 

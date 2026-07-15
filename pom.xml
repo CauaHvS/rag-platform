@@ -145,6 +145,17 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- ===== Resiliência ===== -->
+        <!-- Spring Retry: @Retryable + @Recover (requer AOP) -->
+        <dependency>
+            <groupId>org.springframework.retry</groupId>
+            <artifactId>spring-retry</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
         <!-- ===== Extração de texto ===== -->
         <!-- PDFBox: extração de texto de PDFs na pipeline de ingestão -->
         <dependency>

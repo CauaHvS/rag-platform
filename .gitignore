@@ -13,6 +13,9 @@ target/
 # Spring Boot
 *.pid
 
+# Armazenamento local de uploads (em prod usar S3)
+uploads/
+
 # IDE
 .idea/
 .vscode/

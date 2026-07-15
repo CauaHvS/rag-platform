@@ -26,6 +26,12 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 20MB
+      max-request-size: 21MB
+
   # Virtual threads (Java 21) — melhora throughput em I/O bound (chamadas de IA, banco)
   threads:
     virtual:
@@ -62,6 +68,8 @@ app:
       # Base64 de pelo menos 32 bytes para HS256. Em prod defina JWT_SECRET.
       secret: ${JWT_SECRET:cmFncGxhdGZvcm0tZGV2LXNlY3JldC1tdXN0LWJlLTMyLWJ5dGVz}
       expiration-ms: ${JWT_EXPIRATION_MS:86400000}  # 24h
+  storage:
+    local-path: ${STORAGE_LOCAL_PATH:./uploads}
 
 logging:
   level:

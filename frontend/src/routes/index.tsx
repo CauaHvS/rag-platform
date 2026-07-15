@@ -9,6 +9,8 @@ import {
 import { HealthBadge } from '@/features/health/components/HealthBadge'
 import { LoginPage } from '@/features/auth/components/LoginPage'
 import { useMe, useLogout } from '@/features/auth/api/useAuth'
+import { DocumentsPage } from '@/features/documents/components/DocumentsPage'
+import { UploadPage } from '@/features/documents/components/UploadPage'
 import { isAuthenticated } from '@/lib/auth'
 import { useDarkMode } from '@/hooks/useDarkMode'
 import { Moon, Sun, FileText, Upload, MessageSquare, History, LogOut } from 'lucide-react'
@@ -156,14 +158,14 @@ const documentsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/documents',
   beforeLoad: requireAuth,
-  component: () => <PlaceholderPage title="Meus Documentos" />,
+  component: DocumentsPage,
 })
 
 const uploadRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/upload',
   beforeLoad: requireAuth,
-  component: () => <PlaceholderPage title="Upload de Documento" />,
+  component: UploadPage,
 })
 
 const chatRoute = createRoute({

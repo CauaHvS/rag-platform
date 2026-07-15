@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rag-platform.fullname" . }}-app
+  labels:
+    {{- include "rag-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
+  {{- with .Values.app.podAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.app.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "rag-platform.app.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "rag-platform.app.selectorLabels" . | nindent 8 }}
+      {{- with .Values.app.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "rag-platform.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: app
+          image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
+          imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: {{ include "rag-platform.fullname" . }}-config
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "rag-platform.fullname" . }}-secrets
+                  key: postgres-password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "rag-platform.fullname" . }}-secrets
+                  key: jwt-secret
+            {{- if .Values.secrets.groqApiKey }}
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "rag-platform.fullname" . }}-secrets
+                  key: groq-api-key
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.app.probes.startup.httpPath }}
+              port: http
+            initialDelaySeconds: {{ .Values.app.probes.startup.initialDelaySeconds }}
+            failureThreshold: {{ .Values.app.probes.startup.failureThreshold }}
+            periodSeconds: {{ .Values.app.probes.startup.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.app.probes.readiness.httpPath }}
+              port: http
+            initialDelaySeconds: {{ .Values.app.probes.readiness.initialDelaySeconds }}
+            failureThreshold: {{ .Values.app.probes.readiness.failureThreshold }}
+            periodSeconds: {{ .Values.app.probes.readiness.periodSeconds }}
+            successThreshold: {{ .Values.app.probes.readiness.successThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.app.probes.liveness.httpPath }}
+              port: http
+            initialDelaySeconds: {{ .Values.app.probes.liveness.initialDelaySeconds }}
+            failureThreshold: {{ .Values.app.probes.liveness.failureThreshold }}
+            periodSeconds: {{ .Values.app.probes.liveness.periodSeconds }}
+          resources:
+            {{- toYaml .Values.app.resources | nindent 12 }}
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: {{ include "rag-platform.fullname" . }}-uploads

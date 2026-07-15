@@ -48,3 +48,6 @@ logs/
 
 # Docker volumes locais
 postgres_data/
+
+# Helm chart dependencies (rebuild via: helm dependency build k8s/helm/rag-platform)
+k8s/helm/rag-platform/charts/

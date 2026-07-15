@@ -1,0 +1,50 @@
+# Overrides para produção
+# Secrets via External Secrets Operator ou Sealed Secrets (não --set em CI)
+# Uso: helm upgrade --install rag ./k8s/helm/rag-platform \
+#        -f values-prod.yaml --set secrets.jwtSecret=$JWT_SECRET \
+#        --set secrets.postgresPassword=$PG_PASS \
+#        --set secrets.groqApiKey=$GROQ_KEY
+
+app:
+  replicaCount: 3
+  image:
+    pullPolicy: Always
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  storage:
+    size: 20Gi
+
+frontend:
+  replicaCount: 2
+  image:
+    pullPolicy: Always
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 60
+
+postgres:
+  storage:
+    size: 50Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+ingress:
+  tls:
+    enabled: true
+
+ai:
+  chatProvider: groq
+  embeddingProvider: ollama

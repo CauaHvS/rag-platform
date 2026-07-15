@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "rag-platform.fullname" . }}-uploads
+  labels:
+    {{- include "rag-platform.labels" . | nindent 4 }}
+  annotations:
+    # Retain para não perder uploads ao fazer helm upgrade/rollback
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- with .Values.app.storage.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.app.storage.size }}

@@ -1,0 +1,152 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Valores padrão do Helm chart — RAG Platform
+#
+# Uso:
+#   helm upgrade --install rag ./k8s/helm/rag-platform -f values-prod.yaml \
+#     --set secrets.jwtSecret=<base64> --set secrets.postgresPassword=<senha>
+# ──────────────────────────────────────────────────────────────────────────────
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+
+# ── Backend (Spring Boot) ─────────────────────────────────────────────────────
+app:
+  image:
+    repository: ragplatform/app
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  replicaCount: 2
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  # Probes — Spring Actuator expõe /readiness e /liveness separados
+  probes:
+    startup:
+      httpPath: /actuator/health
+      initialDelaySeconds: 20
+      failureThreshold: 18   # 18 × 10s = 3 min para subir
+      periodSeconds: 10
+    readiness:
+      httpPath: /actuator/health/readiness
+      initialDelaySeconds: 0
+      failureThreshold: 3
+      periodSeconds: 10
+      successThreshold: 1
+    liveness:
+      httpPath: /actuator/health/liveness
+      initialDelaySeconds: 0
+      failureThreshold: 3
+      periodSeconds: 30
+
+  storage:
+    # PVC para uploads locais
+    size: 5Gi
+
+  podAnnotations: {}
+
+# ── Frontend (nginx SPA) ──────────────────────────────────────────────────────
+frontend:
+  image:
+    repository: ragplatform/frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# ── PostgreSQL com pgvector ───────────────────────────────────────────────────
+# StatefulSet interno usando a imagem pgvector/pgvector (não bitnami)
+postgres:
+  enabled: true
+  image:
+    repository: pgvector/pgvector
+    tag: pg16
+    pullPolicy: IfNotPresent
+
+  database: ragplatform
+  username: ragplatform   # senha em secrets.postgresPassword
+
+  storage:
+    size: 10Gi
+    # storageClassName: ""  # deixe vazio para usar o default do cluster
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ── Redis (bitnami/redis subchart) ───────────────────────────────────────────
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+# ── HPA — escala horizontal do backend ───────────────────────────────────────
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  host: rag.example.com
+  annotations: {}
+  tls:
+    enabled: false
+    secretName: rag-platform-tls
+
+# ── Segredos (NUNCA comite valores reais; use --set ou sealed-secrets) ────────
+secrets:
+  # JWT_SECRET — base64 de 32 bytes aleatórios
+  # Gere com: openssl rand -base64 32
+  jwtSecret: ""
+
+  # Senha do PostgreSQL
+  postgresPassword: ""
+
+  # Chave Groq (opcional — necessária apenas se ai.chatProvider=groq)
+  groqApiKey: ""
+
+# ── Configuração de IA ────────────────────────────────────────────────────────
+ai:
+  chatProvider: fake          # fake | groq
+  embeddingProvider: fake     # fake | ollama
+  ollamaBaseUrl: http://ollama:11434
+
+# ── Zipkin (tracing) ─────────────────────────────────────────────────────────
+zipkin:
+  endpoint: ""  # ex: http://zipkin:9411/api/v2/spans; vazio = tracing desabilitado

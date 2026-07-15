@@ -1,0 +1,39 @@
+RAG Platform instalado com sucesso!
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+{{- if .Values.ingress.enabled }}
+Acesse a aplicação em:
+{{- if .Values.ingress.tls.enabled }}
+  https://{{ .Values.ingress.host }}
+{{- else }}
+  http://{{ .Values.ingress.host }}
+{{- end }}
+{{- else }}
+Para acessar localmente via port-forward:
+
+  kubectl port-forward svc/{{ include "rag-platform.fullname" . }}-frontend 8080:80 -n {{ .Release.Namespace }}
+
+Depois acesse: http://localhost:8080
+{{- end }}
+
+Componentes implantados:
+  Backend:   {{ include "rag-platform.fullname" . }}-app (porta 8080)
+  Frontend:  {{ include "rag-platform.fullname" . }}-frontend (porta 80)
+{{- if .Values.postgres.enabled }}
+  Postgres:  {{ include "rag-platform.postgres.serviceName" . }} (porta 5432)
+{{- end }}
+{{- if .Values.redis.enabled }}
+  Redis:     {{ include "rag-platform.redis.serviceName" . }} (porta 6379)
+{{- end }}
+{{- if .Values.autoscaling.enabled }}
+  HPA:       {{ .Values.autoscaling.minReplicas }}–{{ .Values.autoscaling.maxReplicas }} réplicas do backend
+{{- end }}
+
+Saúde do backend:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/component=app
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=app --tail=50
+
+IMPORTANTE: nunca commite valores reais de secrets no values.yaml.
+Use `--set secrets.jwtSecret=<valor>` ou External Secrets Operator em produção.

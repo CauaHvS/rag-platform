@@ -1,0 +1,32 @@
+# Overrides para ambiente de desenvolvimento (k3d, minikube, kind)
+# Uso: helm upgrade --install rag ./k8s/helm/rag-platform -f values-dev.yaml \
+#        --set secrets.jwtSecret=<base64> --set secrets.postgresPassword=dev
+
+app:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  storage:
+    size: 2Gi
+
+frontend:
+  replicaCount: 1
+
+autoscaling:
+  enabled: false
+
+postgres:
+  storage:
+    size: 2Gi
+
+ingress:
+  host: rag.local
+
+ai:
+  chatProvider: fake
+  embeddingProvider: fake

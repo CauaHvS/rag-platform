@@ -11,6 +11,7 @@ import { LoginPage } from '@/features/auth/components/LoginPage'
 import { useMe, useLogout } from '@/features/auth/api/useAuth'
 import { DocumentsPage } from '@/features/documents/components/DocumentsPage'
 import { UploadPage } from '@/features/documents/components/UploadPage'
+import { ChatPage } from '@/features/chat/components/ChatPage'
 import { isAuthenticated } from '@/lib/auth'
 import { useDarkMode } from '@/hooks/useDarkMode'
 import { Moon, Sun, FileText, Upload, MessageSquare, History, LogOut } from 'lucide-react'
@@ -172,7 +173,7 @@ const chatRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/chat',
   beforeLoad: requireAuth,
-  component: () => <PlaceholderPage title="Chat com Documentos" />,
+  component: ChatPage,
 })
 
 const historyRoute = createRoute({

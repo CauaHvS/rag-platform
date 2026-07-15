@@ -138,8 +138,23 @@
             <artifactId>postgresql</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Polling em testes assíncronos -->
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- ===== Extração de texto ===== -->
+        <!-- PDFBox: extração de texto de PDFs na pipeline de ingestão -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.3</version>
+        </dependency>
 
     </dependencies>
+
 
     <build>
         <plugins>

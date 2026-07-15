@@ -69,6 +69,15 @@ public class LocalFileStorage implements FileStorage {
         }
     }
 
+    @Override
+    public InputStream load(String storagePath) {
+        try {
+            return Files.newInputStream(storageRoot.resolve(storagePath));
+        } catch (IOException e) {
+            throw new StorageException("Falha ao carregar arquivo: " + storagePath, e);
+        }
+    }
+
     /** Remove caracteres que não sejam alfanuméricos, ponto, traço ou underscore. */
     private String sanitize(String name) {
         return name.replaceAll("[^a-zA-Z0-9._-]", "_");

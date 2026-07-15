@@ -17,4 +17,10 @@ public interface FileStorage {
 
     /** Remove o arquivo. Idempotente: não lança exceção se já não existir. */
     void delete(String storagePath);
+
+    /**
+     * Abre um InputStream para leitura do arquivo armazenado.
+     * Lança {@link dev.ragplatform.domain.exception.StorageException} se o arquivo não existir.
+     */
+    java.io.InputStream load(String storagePath);
 }

@@ -1,10 +1,12 @@
 package dev.ragplatform.application.usecase;
 
+import dev.ragplatform.domain.event.DocumentUploadedEvent;
 import dev.ragplatform.domain.exception.DocumentNotFoundException;
 import dev.ragplatform.domain.exception.UnsupportedDocumentTypeException;
 import dev.ragplatform.domain.model.Document;
 import dev.ragplatform.domain.port.out.DocumentRepository;
 import dev.ragplatform.domain.port.out.FileStorage;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,10 +27,13 @@ public class DocumentService {
 
     private final DocumentRepository documentRepository;
     private final FileStorage fileStorage;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public DocumentService(DocumentRepository documentRepository, FileStorage fileStorage) {
+    public DocumentService(DocumentRepository documentRepository, FileStorage fileStorage,
+                           ApplicationEventPublisher eventPublisher) {
         this.documentRepository = documentRepository;
         this.fileStorage = fileStorage;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -48,7 +53,11 @@ public class DocumentService {
 
         Document document = Document.newUpload(docId, ownerId, originalName,
                 tipoEfetivo, fileSize, storagePath);
-        return documentRepository.save(document);
+        Document saved = documentRepository.save(document);
+
+        // Publica evento APÓS o save; o listener dispara o job somente após o commit (AFTER_COMMIT).
+        eventPublisher.publishEvent(new DocumentUploadedEvent(saved.id(), saved.ownerId()));
+        return saved;
     }
 
     @Transactional(readOnly = true)

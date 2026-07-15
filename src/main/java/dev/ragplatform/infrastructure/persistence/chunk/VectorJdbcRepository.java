@@ -72,6 +72,83 @@ public class VectorJdbcRepository implements VectorRepository {
         ));
     }
 
+    /**
+     * Busca híbrida via RRF (Reciprocal Rank Fusion).
+     *
+     * Combina dois rankings independentes:
+     *   - vetorial: distância coseno (<=>)
+     *   - full-text: ts_rank_cd sobre coluna content_tsv (tsvector gerada)
+     *
+     * RRF score = 1/(60 + rank_vec) + 1/(60 + rank_fts)
+     * FULL OUTER JOIN garante que chunks presentes em apenas um dos rankings
+     * ainda contribuem (com score parcial).
+     *
+     * Over-fetch (k*3) em cada subquery dá ao RRF mais candidatos para reranquear.
+     */
+    @Override
+    public List<SimilarChunk> findSimilarHybrid(UUID ownerId, float[] queryEmbedding, String query, int k) {
+        String vectorStr = toVectorString(queryEmbedding);
+        int overfetch = k * 3;
+        return jdbc.query(conn -> {
+            var ps = conn.prepareStatement("""
+                    WITH vector_ranked AS (
+                        SELECT id,
+                               ROW_NUMBER() OVER (ORDER BY embedding <=> ?::vector) AS rnk
+                        FROM chunks
+                        WHERE owner_id = ?::uuid
+                          AND embedding IS NOT NULL
+                        ORDER BY embedding <=> ?::vector
+                        LIMIT ?
+                    ),
+                    text_ranked AS (
+                        SELECT id,
+                               ROW_NUMBER() OVER (
+                                   ORDER BY ts_rank_cd(content_tsv,
+                                       plainto_tsquery('portuguese', ?)) DESC
+                               ) AS rnk
+                        FROM chunks
+                        WHERE owner_id = ?::uuid
+                          AND content_tsv @@ plainto_tsquery('portuguese', ?)
+                        LIMIT ?
+                    ),
+                    rrf_scores AS (
+                        SELECT
+                            COALESCE(v.id, t.id)                           AS chunk_id,
+                            COALESCE(1.0 / (60.0 + v.rnk), 0.0)
+                            + COALESCE(1.0 / (60.0 + t.rnk), 0.0)         AS rrf_score
+                        FROM vector_ranked v
+                        FULL OUTER JOIN text_ranked t ON v.id = t.id
+                    )
+                    SELECT c.id, c.document_id, c.content, c.char_start, c.char_end,
+                           r.rrf_score AS similarity
+                    FROM rrf_scores r
+                    JOIN chunks c ON c.id = r.chunk_id
+                    ORDER BY r.rrf_score DESC
+                    LIMIT ?
+                    """);
+            // vector_ranked: embedding, ownerId, embedding (ORDER BY), overfetch
+            ps.setString(1, vectorStr);
+            ps.setString(2, ownerId.toString());
+            ps.setString(3, vectorStr);
+            ps.setInt(4, overfetch);
+            // text_ranked: query, ownerId, query (@@), overfetch
+            ps.setString(5, query);
+            ps.setString(6, ownerId.toString());
+            ps.setString(7, query);
+            ps.setInt(8, overfetch);
+            // final LIMIT
+            ps.setInt(9, k);
+            return ps;
+        }, (rs, rowNum) -> new SimilarChunk(
+                UUID.fromString(rs.getString("id")),
+                UUID.fromString(rs.getString("document_id")),
+                rs.getString("content"),
+                rs.getInt("char_start"),
+                rs.getInt("char_end"),
+                rs.getDouble("similarity")
+        ));
+    }
+
     private String toVectorString(float[] embedding) {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < embedding.length; i++) {

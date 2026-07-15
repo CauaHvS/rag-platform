@@ -60,9 +60,9 @@ public class ChatService {
         log.info("Chat RAG — ownerId={} k={} question.length={}", ownerId, k, question.length());
 
         float[] queryEmbedding = cachedEmbedQuery(question);
-        List<SimilarChunk> sources = vectorRepository.findSimilar(ownerId, queryEmbedding, k);
+        List<SimilarChunk> sources = vectorRepository.findSimilarHybrid(ownerId, queryEmbedding, question, k);
 
-        log.debug("Chunks recuperados: {}", sources.size());
+        log.debug("Chunks recuperados (híbrido): {}", sources.size());
 
         String systemPrompt = promptTemplate.replace("{context}", buildContext(sources));
         String answer = chatProvider.chat(systemPrompt, question);
@@ -80,7 +80,7 @@ public class ChatService {
     public ChatStreamContext prepareStream(UUID ownerId, String question, int k) {
         log.info("Chat stream prepare — ownerId={} k={}", ownerId, k);
         float[] queryEmbedding = cachedEmbedQuery(question);
-        List<SimilarChunk> sources = vectorRepository.findSimilar(ownerId, queryEmbedding, k);
+        List<SimilarChunk> sources = vectorRepository.findSimilarHybrid(ownerId, queryEmbedding, question, k);
         String systemPrompt = promptTemplate.replace("{context}", buildContext(sources));
         return new ChatStreamContext(sources, systemPrompt);
     }

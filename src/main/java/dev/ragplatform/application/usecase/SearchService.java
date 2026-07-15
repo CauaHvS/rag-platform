@@ -1,5 +1,6 @@
 package dev.ragplatform.application.usecase;
 
+import dev.ragplatform.domain.model.SearchMode;
 import dev.ragplatform.domain.model.SimilarChunk;
 import dev.ragplatform.domain.port.out.EmbeddingProvider;
 import dev.ragplatform.domain.port.out.VectorRepository;
@@ -21,12 +22,19 @@ public class SearchService {
     }
 
     /**
-     * Busca semântica: embeda a query e retorna os k chunks mais próximos do dono.
-     * O filtro por ownerId garante que o usuário não veja chunks de outros.
+     * Busca de chunks no modo especificado.
+     *
+     * HYBRID (padrão): RRF vetorial + BM25 — mais preciso, preferido em produção.
+     * VECTOR: apenas similaridade coseno — útil para diagnóstico e comparação.
+     *
+     * Isolamento garantido: owner_id filtrado no SQL de ambos os modos.
      */
     @Transactional(readOnly = true)
-    public List<SimilarChunk> search(UUID ownerId, String query, int k) {
+    public List<SimilarChunk> search(UUID ownerId, String query, int k, SearchMode mode) {
         float[] queryEmbedding = embeddingProvider.embedQuery(query);
-        return vectorRepository.findSimilar(ownerId, queryEmbedding, k);
+        return switch (mode) {
+            case HYBRID -> vectorRepository.findSimilarHybrid(ownerId, queryEmbedding, query, k);
+            case VECTOR -> vectorRepository.findSimilar(ownerId, queryEmbedding, k);
+        };
     }
 }

@@ -1,7 +1,7 @@
 package dev.ragplatform.infrastructure.ai.fake;
 
 import dev.ragplatform.domain.port.out.EmbeddingProvider;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -9,14 +9,14 @@ import java.util.List;
 /**
  * Adapter fake do EmbeddingProvider.
  *
- * Ativo quando nenhum outro EmbeddingProvider está registrado no contexto Spring.
- * Em prod, este bean é substituído automaticamente pelo adapter real (Ollama ou OpenAI).
+ * Ativo quando app.embedding.provider=fake (default) ou quando a propriedade não está definida.
+ * Em dev/prod, substituir por OllamaEmbeddingProvider (EMBEDDING_PROVIDER=ollama).
  *
  * Retorna vetores de zeros — sem rede, sem cota, sem Ollama rodando.
  * Garante que testes de integração não dependam de infraestrutura externa de IA.
  */
 @Component
-@ConditionalOnMissingBean(EmbeddingProvider.class)
+@ConditionalOnProperty(name = "app.embedding.provider", havingValue = "fake", matchIfMissing = true)
 public class FakeEmbeddingProvider implements EmbeddingProvider {
 
     private static final int DIMENSION = 768;

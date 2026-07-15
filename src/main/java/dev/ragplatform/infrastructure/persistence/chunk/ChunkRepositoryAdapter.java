@@ -2,6 +2,7 @@ package dev.ragplatform.infrastructure.persistence.chunk;
 
 import dev.ragplatform.domain.model.Chunk;
 import dev.ragplatform.domain.port.out.ChunkRepository;
+import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,15 +13,21 @@ import java.util.UUID;
 public class ChunkRepositoryAdapter implements ChunkRepository {
 
     private final ChunkJpaRepository jpaRepo;
+    private final EntityManager em;
 
-    public ChunkRepositoryAdapter(ChunkJpaRepository jpaRepo) {
+    public ChunkRepositoryAdapter(ChunkJpaRepository jpaRepo, EntityManager em) {
         this.jpaRepo = jpaRepo;
+        this.em = em;
     }
 
     @Override
     public List<Chunk> saveAll(List<Chunk> chunks) {
         List<ChunkJpaEntity> entities = chunks.stream().map(this::toEntity).toList();
-        return jpaRepo.saveAll(entities).stream().map(this::toDomain).toList();
+        List<Chunk> saved = jpaRepo.saveAll(entities).stream().map(this::toDomain).toList();
+        // Força flush para que o JdbcTemplate (VectorJdbcRepository) veja as linhas
+        // na mesma transação antes de executar o UPDATE de embedding.
+        em.flush();
+        return saved;
     }
 
     @Override

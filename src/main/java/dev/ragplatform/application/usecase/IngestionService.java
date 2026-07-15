@@ -6,9 +6,11 @@ import dev.ragplatform.domain.model.Document;
 import dev.ragplatform.domain.model.DocumentStatus;
 import dev.ragplatform.domain.port.out.ChunkRepository;
 import dev.ragplatform.domain.port.out.DocumentRepository;
+import dev.ragplatform.domain.port.out.EmbeddingProvider;
 import dev.ragplatform.domain.port.out.FileStorage;
 import dev.ragplatform.domain.port.out.TextChunker;
 import dev.ragplatform.domain.port.out.TextExtractor;
+import dev.ragplatform.domain.port.out.VectorRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -24,47 +26,49 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Pipeline de ingestão de documentos.
  *
- * Fluxo (Fatia 2.1 — sem embeddings ainda):
- *   PENDING → EXTRACTING → CHUNKING → READY
- *                                   ↘ FAILED (qualquer erro)
+ * Fluxo (Fatia 2.2):
+ *   PENDING → EXTRACTING → CHUNKING → EMBEDDING → READY
+ *                                               ↘ FAILED (qualquer erro)
  *
  * Idempotência: chunks existentes são removidos antes de recriar.
- * Retomabilidade completa (chunk-a-chunk) é trabalho futuro.
+ * Embeddings em lote (BATCH_SIZE) para respeitar limites de taxa do provedor.
  */
 @Service
 public class IngestionService {
 
     private static final Logger log = LoggerFactory.getLogger(IngestionService.class);
+    private static final int BATCH_SIZE = 32;
 
     private final DocumentRepository documentRepository;
     private final ChunkRepository chunkRepository;
+    private final VectorRepository vectorRepository;
     private final FileStorage fileStorage;
     private final List<TextExtractor> extractors;
     private final TextChunker chunker;
+    private final EmbeddingProvider embeddingProvider;
 
     public IngestionService(DocumentRepository documentRepository,
                             ChunkRepository chunkRepository,
+                            VectorRepository vectorRepository,
                             FileStorage fileStorage,
                             List<TextExtractor> extractors,
-                            TextChunker chunker) {
+                            TextChunker chunker,
+                            EmbeddingProvider embeddingProvider) {
         this.documentRepository = documentRepository;
         this.chunkRepository = chunkRepository;
+        this.vectorRepository = vectorRepository;
         this.fileStorage = fileStorage;
         this.extractors = extractors;
         this.chunker = chunker;
+        this.embeddingProvider = embeddingProvider;
     }
 
-    /**
-     * Executa o pipeline de ingestão de forma assíncrona.
-     * Deve ser chamado APÓS o commit da transação de upload (via @TransactionalEventListener).
-     */
     @Async("ingestionExecutor")
     @Transactional
     public CompletableFuture<Void> processDocument(UUID documentId, UUID ownerId) {
         Document doc = documentRepository.findByIdAndOwnerId(documentId, ownerId)
                 .orElseThrow(() -> new DocumentNotFoundException(documentId));
 
-        // Ignora se já foi processado ou está em processamento por outro thread
         if (doc.status() != DocumentStatus.PENDING) {
             log.warn("Documento {} já está em estado {}; ignorando.", documentId, doc.status());
             return CompletableFuture.completedFuture(null);
@@ -74,26 +78,25 @@ public class IngestionService {
             // ── Extração ────────────────────────────────────────────────────
             doc = documentRepository.save(doc.withStatus(DocumentStatus.EXTRACTING));
             log.info("[{}] Extraindo texto ({}).", documentId, doc.mimeType());
-
             String text = extractText(doc);
-            log.info("[{}] Texto extraído: {} chars.", documentId, text.length());
+            log.info("[{}] {} chars extraídos.", documentId, text.length());
 
             // ── Chunking ─────────────────────────────────────────────────────
             doc = documentRepository.save(doc.withStatus(DocumentStatus.CHUNKING));
-
             List<TextChunker.ChunkContent> chunkContents = chunker.chunk(text);
-            log.info("[{}] {} chunks gerados.", documentId, chunkContents.size());
-
-            // Idempotência: remove chunks anteriores antes de recriar
             chunkRepository.deleteByDocumentId(documentId);
+            List<Chunk> savedChunks = chunkRepository.saveAll(
+                    buildChunks(documentId, ownerId, chunkContents));
+            log.info("[{}] {} chunks salvos.", documentId, savedChunks.size());
 
-            List<Chunk> chunks = buildChunks(documentId, ownerId, chunkContents);
-            chunkRepository.saveAll(chunks);
+            // ── Embedding ────────────────────────────────────────────────────
+            doc = documentRepository.save(doc.withStatus(DocumentStatus.EMBEDDING));
+            embedChunks(savedChunks);
+            log.info("[{}] Embeddings gerados para {} chunks.", documentId, savedChunks.size());
 
             // ── READY ─────────────────────────────────────────────────────────
-            // Embedding será adicionado na Fatia 2.2; por ora vai direto para READY.
             documentRepository.save(doc.withStatus(DocumentStatus.READY));
-            log.info("[{}] Ingestão concluída com {} chunks.", documentId, chunks.size());
+            log.info("[{}] Ingestão concluída.", documentId);
 
         } catch (Exception e) {
             log.error("[{}] Falha na ingestão: {}", documentId, e.getMessage(), e);
@@ -112,9 +115,20 @@ public class IngestionService {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException(
                         "Nenhum extrator para o tipo: " + doc.mimeType()));
+        try (InputStream in = fileStorage.load(doc.storagePath())) {
+            return extractor.extract(in, doc.originalName());
+        }
+    }
 
-        try (InputStream input = fileStorage.load(doc.storagePath())) {
-            return extractor.extract(input, doc.originalName());
+    private void embedChunks(List<Chunk> chunks) {
+        if (chunks.isEmpty()) return;
+        for (int i = 0; i < chunks.size(); i += BATCH_SIZE) {
+            List<Chunk> batch = chunks.subList(i, Math.min(i + BATCH_SIZE, chunks.size()));
+            List<String> contents = batch.stream().map(Chunk::content).toList();
+            List<float[]> embeddings = embeddingProvider.embedDocuments(contents);
+            for (int j = 0; j < batch.size(); j++) {
+                vectorRepository.saveEmbedding(batch.get(j).id(), embeddings.get(j));
+            }
         }
     }
 
@@ -122,7 +136,7 @@ public class IngestionService {
                                     List<TextChunker.ChunkContent> contents) {
         return java.util.stream.IntStream.range(0, contents.size())
                 .mapToObj(i -> {
-                    TextChunker.ChunkContent c = contents.get(i);
+                    var c = contents.get(i);
                     return Chunk.of(documentId, ownerId, i, c.content(), c.charStart(), c.charEnd());
                 })
                 .toList();

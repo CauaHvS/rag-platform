@@ -29,8 +29,50 @@ services:
       timeout: 5s
       retries: 5
 
-  # backend e frontend serão adicionados nas fases seguintes
-  # por enquanto sobe só a infra: docker compose up -d postgres redis
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ragplatform-app
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/ragplatform
+      DATABASE_USERNAME: ragplatform
+      DATABASE_PASSWORD: ragplatform
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      STORAGE_LOCAL_PATH: /app/uploads
+      # Defina estas variáveis no ambiente de produção:
+      # JWT_SECRET: <base64-32bytes>
+      # GROQ_API_KEY: <sua-chave>
+      # CHAT_PROVIDER: groq
+      # EMBEDDING_PROVIDER: ollama
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ragplatform-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      app:
+        condition: service_healthy
 
 volumes:
   postgres_data:
+  uploads_data:

@@ -82,6 +82,10 @@ app:
     base-url: ${CHAT_BASE_URL:https://api.groq.com/openai/v1}
     # GROQ_API_KEY: nunca definir aqui — usar env var ou secrets manager
     api-key: ${GROQ_API_KEY:}
+  ratelimit:
+    chat:
+      # Máximo de requisições por usuário por minuto para endpoints /api/chat/**
+      max-per-minute: ${CHAT_RATE_LIMIT:20}
 
 logging:
   level:

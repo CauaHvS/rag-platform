@@ -1,18 +1,45 @@
 openapi: "3.1.0"
 info:
   title: RAG Platform API
-  version: "0.1.0"
-  description: API para a plataforma RAG de perguntas e respostas sobre documentos privados.
+  version: "1.0.0"
+  description: |
+    Plataforma RAG (Retrieval-Augmented Generation) para perguntas e respostas sobre
+    documentos privados.
+
+    ## Fluxo principal
+    1. **Registrar / Autenticar** — obter JWT
+    2. **Upload de documento** — retorna 202 + documentId
+    3. **Aguardar ingestão** — poll em `GET /api/documents/{id}` até status `READY`
+    4. **Buscar** — `GET /api/search?q=...` retorna chunks relevantes
+    5. **Chat** — `POST /api/chat` (síncrono) ou `POST /api/chat/stream` (SSE token a token)
+
+    ## Segurança
+    Todos os endpoints `/api/*` exigem `Authorization: Bearer <jwt>`.
+    A chave de API do LLM nunca é exposta ao cliente.
+
+    ## Isolamento multiusuário
+    Toda busca e chat filtram por `owner_id` no SQL. Um usuário nunca recupera
+    chunks ou documentos de outro usuário.
 
 servers:
   - url: http://localhost:8080
     description: Desenvolvimento local
+  - url: http://localhost:80
+    description: Docker Compose (frontend + nginx proxy)
 
 tags:
   - name: auth
     description: Registro e autenticação de usuários
+  - name: documents
+    description: Upload e consulta de status de documentos
+  - name: search
+    description: Busca semântica híbrida (vetorial + BM25)
+  - name: chat
+    description: Perguntas e respostas com RAG (síncrono e streaming SSE)
 
 paths:
+
+  # ── Auth ─────────────────────────────────────────────────────────────────────
 
   /auth/register:
     post:
@@ -92,11 +119,288 @@ paths:
               schema:
                 $ref: "#/components/schemas/UserInfo"
         "401":
-          description: Não autenticado
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Documents ────────────────────────────────────────────────────────────────
+
+  /api/documents:
+    post:
+      tags: [documents]
+      summary: Upload de documento para ingestão assíncrona
+      operationId: uploadDocument
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Arquivo PDF ou texto (max 50 MB)
+      responses:
+        "202":
+          description: |
+            Documento aceito para processamento assíncrono.
+            Máquina de estados: PENDING → EXTRACTING → CHUNKING → EMBEDDING → READY | FAILED.
+            Faça poll em `GET /api/documents/{id}` até status `READY`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentResponse"
+              example:
+                id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                originalName: "contrato.pdf"
+                mimeType: "application/pdf"
+                fileSize: 204800
+                status: "PENDING"
+                errorMessage: null
+                createdAt: "2026-07-15T10:00:00Z"
+                updatedAt: "2026-07-15T10:00:00Z"
+        "400":
+          description: Tipo de arquivo não suportado ou arquivo ausente
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    get:
+      tags: [documents]
+      summary: Lista documentos do usuário autenticado
+      operationId: listDocuments
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Lista de documentos (apenas os do usuário autenticado)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocumentResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/documents/{id}:
+    get:
+      tags: [documents]
+      summary: Consulta status de um documento específico
+      operationId: getDocument
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Documento encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Documento não encontrado ou não pertence ao usuário
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  # ── Search ───────────────────────────────────────────────────────────────────
+
+  /api/search:
+    get:
+      tags: [search]
+      summary: Busca semântica híbrida nos documentos do usuário
+      operationId: search
+      description: |
+        Busca híbrida por padrão (mode=hybrid): combina similaridade vetorial (coseno)
+        e BM25 full-text via Reciprocal Rank Fusion (RRF = 1/(60+rank)).
+
+        O modo `vector` usa apenas similaridade coseno do embedding da pergunta.
+
+        **Isolamento garantido**: filtro `owner_id` aplicado no SQL antes do ranking.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 500
+          description: Texto da busca
+          example: "quais são as obrigações do contratante?"
+        - name: k
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 5
+          description: Número de chunks a retornar
+        - name: mode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [hybrid, vector]
+            default: hybrid
+          description: |
+            `hybrid` — vetorial + BM25 com RRF (recomendado).
+            `vector` — somente similaridade coseno.
+      responses:
+        "200":
+          description: Lista de chunks relevantes ordenados por score decrescente
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SearchResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Chat ─────────────────────────────────────────────────────────────────────
+
+  /api/chat:
+    post:
+      tags: [chat]
+      summary: Pergunta RAG síncrona (resposta completa)
+      operationId: chat
+      description: |
+        Executa o pipeline RAG completo e retorna a resposta inteira de uma vez.
+        Use `POST /api/chat/stream` para respostas token a token.
+
+        Rate limit: 20 requests/minuto por usuário (configurável).
+        Excedido: HTTP 429 com header `Retry-After`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+            example:
+              question: "Quais são as penalidades por rescisão antecipada?"
+              k: 5
+      responses:
+        "200":
+          description: Resposta gerada com fontes citadas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+        "400":
+          description: Pergunta inválida (vazia ou muito longa)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ValidationProblem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+        "503":
+          description: LLM indisponível após retentativas
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /api/chat/stream:
+    post:
+      tags: [chat]
+      summary: Pergunta RAG com streaming token a token (SSE)
+      operationId: chatStream
+      description: |
+        Inicia o pipeline RAG e devolve a resposta via Server-Sent Events.
+
+        **Sequência de eventos:**
+        1. `event: sources` — array JSON de chunks usados como contexto
+        2. `event: token`   — fragmento de texto gerado (repetido N vezes)
+        3. `event: done`    — marcador de conclusão (data vazia)
+
+        **Exemplo de stream:**
+        ```
+        event: sources
+        data: [{"chunkId":"...","documentId":"...","content":"...","similarity":0.87}]
+
+        event: token
+        data: Com base
+
+        event: token
+        data:  no contrato,
+
+        event: done
+        data:
+        ```
+
+        Rate limit: 20 requests/minuto por usuário (configurável).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Stream SSE de eventos
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: Sequência de eventos SSE (sources, token..., done)
+        "400":
+          description: Pergunta inválida
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ValidationProblem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
+
+  /api/chat/history:
+    get:
+      tags: [chat]
+      summary: Histórico de conversas do usuário
+      operationId: chatHistory
+      description: |
+        Retorna todos os turnos de conversa do usuário autenticado,
+        ordenados do mais recente para o mais antigo.
+        Apenas turnos do próprio usuário são retornados (isolamento por owner_id).
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Lista de turnos de conversa
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatTurnResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
 components:
 
@@ -106,7 +410,33 @@ components:
       scheme: bearer
       bearerFormat: JWT
 
+  responses:
+    Unauthorized:
+      description: Não autenticado ou token inválido/expirado
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    RateLimitExceeded:
+      description: Rate limit excedido
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Segundos para aguardar antes de tentar novamente
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: "about:blank"
+            title: "Too Many Requests"
+            status: 429
+            detail: "Limite de 20 requests/minuto excedido"
+
   schemas:
+
+    # ── Auth ──────────────────────────────────────────────────────────────────
 
     RegisterRequest:
       type: object
@@ -144,7 +474,8 @@ components:
       properties:
         token:
           type: string
-          description: JWT Bearer token
+          description: JWT Bearer token (validade 24h)
+          example: "eyJhbGciOiJIUzI1NiJ9..."
         user:
           $ref: "#/components/schemas/UserInfo"
 
@@ -156,9 +487,142 @@ components:
           format: uuid
         name:
           type: string
+          example: "João Silva"
         email:
           type: string
           format: email
+          example: "joao@empresa.com"
+
+    # ── Documents ─────────────────────────────────────────────────────────────
+
+    DocumentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        originalName:
+          type: string
+          example: "contrato.pdf"
+        mimeType:
+          type: string
+          example: "application/pdf"
+        fileSize:
+          type: integer
+          format: int64
+          description: Tamanho em bytes
+          example: 204800
+        status:
+          type: string
+          enum: [PENDING, EXTRACTING, CHUNKING, EMBEDDING, READY, FAILED]
+          description: |
+            Estado atual da ingestão assíncrona.
+            READY = pronto para busca e chat.
+            FAILED = veja errorMessage para detalhes.
+        errorMessage:
+          type: string
+          nullable: true
+          description: Presente apenas quando status=FAILED
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # ── Search ────────────────────────────────────────────────────────────────
+
+    SearchResult:
+      type: object
+      properties:
+        documentId:
+          type: string
+          format: uuid
+        chunkId:
+          type: string
+          format: uuid
+        content:
+          type: string
+          description: Trecho de texto do documento original
+          example: "As penalidades por rescisão antecipada consistem em..."
+        charStart:
+          type: integer
+          description: Posição de início do chunk no texto original
+        charEnd:
+          type: integer
+          description: Posição de fim do chunk no texto original
+        similarity:
+          type: number
+          format: double
+          description: |
+            Score de relevância. No modo hybrid: RRF score (maior = mais relevante).
+            No modo vector: similaridade coseno [0, 1].
+          example: 0.8734
+
+    # ── Chat ──────────────────────────────────────────────────────────────────
+
+    ChatRequest:
+      type: object
+      required: [question]
+      properties:
+        question:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          example: "Quais são as penalidades por rescisão antecipada?"
+        k:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 5
+          description: Número de chunks de contexto a recuperar
+
+    ChatResponse:
+      type: object
+      properties:
+        answer:
+          type: string
+          description: Resposta gerada pelo LLM com base nos documentos
+          example: "Com base nos documentos fornecidos, as penalidades por rescisão..."
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceReference"
+
+    SourceReference:
+      type: object
+      description: Chunk usado como contexto para gerar a resposta
+      properties:
+        chunkId:
+          type: string
+          format: uuid
+        documentId:
+          type: string
+          format: uuid
+        content:
+          type: string
+          description: Trecho do documento
+        similarity:
+          type: number
+          format: double
+          description: Score de relevância
+
+    ChatTurnResponse:
+      type: object
+      description: Um turno de conversa (pergunta + resposta)
+      properties:
+        id:
+          type: string
+          format: uuid
+        question:
+          type: string
+        answer:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    # ── Erros ─────────────────────────────────────────────────────────────────
 
     Problem:
       type: object

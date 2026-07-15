@@ -9,6 +9,7 @@ import dev.ragplatform.domain.port.out.EmbeddingProvider;
 import dev.ragplatform.domain.port.out.VectorRepository;
 import dev.ragplatform.infrastructure.ai.cache.EmbeddingQueryCache;
 import dev.ragplatform.infrastructure.observability.AiMetrics;
+import io.micrometer.observation.annotation.Observed;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
@@ -56,6 +57,7 @@ public class ChatService {
         this.promptTemplate = loadPromptTemplate();
     }
 
+    @Observed(name = "rag.chat", contextualName = "chat-pipeline")
     public ChatAnswer chat(UUID ownerId, String question, int k) {
         log.info("Chat RAG — ownerId={} k={} question.length={}", ownerId, k, question.length());
 
@@ -77,6 +79,7 @@ public class ChatService {
      * Passo 1 do pipeline streaming: embed query + busca vetorial + monta prompt.
      * Não faz chamada ao LLM — retorna contexto pronto para streamTokens().
      */
+    @Observed(name = "rag.chat.stream.prepare", contextualName = "chat-stream-prepare")
     public ChatStreamContext prepareStream(UUID ownerId, String question, int k) {
         log.info("Chat stream prepare — ownerId={} k={}", ownerId, k);
         float[] queryEmbedding = cachedEmbedQuery(question);

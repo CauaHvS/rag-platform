@@ -4,6 +4,7 @@ import dev.ragplatform.domain.model.SearchMode;
 import dev.ragplatform.domain.model.SimilarChunk;
 import dev.ragplatform.domain.port.out.EmbeddingProvider;
 import dev.ragplatform.domain.port.out.VectorRepository;
+import io.micrometer.observation.annotation.Observed;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +30,7 @@ public class SearchService {
      *
      * Isolamento garantido: owner_id filtrado no SQL de ambos os modos.
      */
+    @Observed(name = "rag.search", contextualName = "busca-hibrida")
     @Transactional(readOnly = true)
     public List<SimilarChunk> search(UUID ownerId, String query, int k, SearchMode mode) {
         float[] queryEmbedding = embeddingProvider.embedQuery(query);

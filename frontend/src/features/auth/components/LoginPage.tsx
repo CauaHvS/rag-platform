@@ -90,11 +90,13 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
 
       <button
         type="submit"
+        data-testid="btn-login"
         disabled={isSubmitting || login.isPending}
         className="w-full rounded-lg bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-gray-900"
       >
         {login.isPending ? 'Entrando...' : 'Entrar'}
       </button>
+
     </form>
   )
 }
@@ -172,6 +174,7 @@ function RegisterForm({ onSuccess }: { onSuccess: () => void }) {
 
       <button
         type="submit"
+        data-testid="btn-register"
         disabled={isSubmitting || register_.isPending}
         className="w-full rounded-lg bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-gray-900"
       >
@@ -208,6 +211,7 @@ export function LoginPage() {
           <div className="mb-6 flex rounded-lg border border-gray-200 p-1 dark:border-gray-700">
             <button
               type="button"
+              data-testid="tab-login"
               onClick={() => setTab('login')}
               className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
                 tab === 'login'
@@ -219,6 +223,7 @@ export function LoginPage() {
             </button>
             <button
               type="button"
+              data-testid="tab-register"
               onClick={() => setTab('register')}
               className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
                 tab === 'register'

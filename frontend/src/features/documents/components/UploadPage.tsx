@@ -68,6 +68,7 @@ export function UploadPage() {
 
       {/* Zona de drop */}
       <div
+        data-testid="drop-zone"
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={onDrop}
@@ -82,6 +83,7 @@ export function UploadPage() {
       >
         <input
           ref={inputRef}
+          data-testid="file-input"
           type="file"
           accept={EXTENSOES}
           onChange={onInputChange}
@@ -130,7 +132,7 @@ export function UploadPage() {
       )}
 
       {upload.isSuccess && (
-        <div className="mt-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400">
+        <div data-testid="upload-success" className="mt-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400">
           <CheckCircle className="h-4 w-4 shrink-0" />
           Documento recebido! Redirecionando...
         </div>
@@ -139,6 +141,7 @@ export function UploadPage() {
       {/* Botão */}
       <button
         type="button"
+        data-testid="btn-submit"
         onClick={enviar}
         disabled={!file || !!erroValidacao || upload.isPending || upload.isSuccess}
         className="mt-4 w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-gray-950"

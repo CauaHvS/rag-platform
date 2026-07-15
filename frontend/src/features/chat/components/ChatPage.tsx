@@ -73,6 +73,7 @@ export function ChatPage() {
             {hasResult && !isStreaming && (
               <button
                 type="button"
+                data-testid="btn-clear"
                 onClick={reset}
                 className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
               >
@@ -82,6 +83,7 @@ export function ChatPage() {
             )}
             <button
               type="submit"
+              data-testid="btn-ask"
               disabled={isStreaming}
               className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
@@ -94,16 +96,16 @@ export function ChatPage() {
 
       {/* Erro */}
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-400">
+        <div data-testid="chat-error" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-400">
           Erro ao consultar: {error}
         </div>
       )}
 
       {/* Fontes — aparecem assim que chegam, antes da resposta terminar */}
       {hasResult && (
-        <div className="space-y-4">
+        <div data-testid="result-section" className="space-y-4">
           {sources.length > 0 ? (
-            <div className="space-y-2">
+            <div data-testid="sources-section" className="space-y-2">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 Fontes ({sources.length} trechos)
               </h2>
@@ -126,7 +128,7 @@ export function ChatPage() {
           )}
 
           {/* Resposta — cresce token a token */}
-          <div className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+          <div data-testid="answer-section" className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Resposta
             </h2>

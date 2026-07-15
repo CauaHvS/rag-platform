@@ -52,7 +52,7 @@ export function DocumentsPage() {
       </div>
 
       {docs && docs.length === 0 ? (
-        <div className="flex flex-col items-center gap-4 py-24 text-center">
+        <div data-testid="empty-state" className="flex flex-col items-center gap-4 py-24 text-center">
           <FileText className="h-12 w-12 text-gray-300 dark:text-gray-700" />
           <p className="text-gray-500 dark:text-gray-400">Nenhum documento ainda.</p>
           <Link
@@ -75,7 +75,7 @@ export function DocumentsPage() {
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {docs?.map((doc) => (
-                <tr key={doc.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                <tr key={doc.id} data-testid="document-row" className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4 shrink-0 text-gray-400" />

@@ -1,0 +1,78 @@
+name: E2E
+
+# Trigger manual — requer infra completa rodando (Docker Compose build)
+# Para rodar em staging: workflow_dispatch com BASE_URL e API_URL via input
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'URL do frontend (ex: http://localhost:80)'
+        required: false
+        default: 'http://localhost:80'
+      api_url:
+        description: 'URL direta do backend (ex: http://localhost:8080)'
+        required: false
+        default: 'http://localhost:8080'
+
+jobs:
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build e sobe stack completa (Docker Compose)
+        run: docker compose up -d --build
+        env:
+          JWT_SECRET: dGVzdC1zZWNyZXQtcGFyYS1jaS1zb21lbnRlLW5hby11c2FyLWVtLXByb2Q=
+
+      - name: Aguarda app ficar saudável
+        run: |
+          echo "Aguardando frontend e backend..."
+          timeout 180 bash -c \
+            'until curl -sf http://localhost:8080/actuator/health | grep -q "UP"; do sleep 5; done'
+          timeout 30 bash -c \
+            'until curl -sf http://localhost:80 > /dev/null; do sleep 2; done'
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Instala dependências Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install chromium --with-deps
+
+      - name: Roda testes E2E
+        working-directory: e2e
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          API_URL: ${{ inputs.api_url }}
+        run: npx playwright test
+
+      - name: Upload relatório Playwright
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 14
+
+      - name: Upload traces (falhas)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: e2e/test-results/
+          retention-days: 7
+
+      - name: Para stack Docker
+        if: always()
+        run: docker compose down -v

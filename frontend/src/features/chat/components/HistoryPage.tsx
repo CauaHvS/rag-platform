@@ -31,7 +31,7 @@ export function HistoryPage() {
       </div>
 
       {!turns || turns.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-10 text-center dark:border-gray-800 dark:bg-gray-900">
+        <div data-testid="history-empty" className="rounded-lg border border-gray-200 bg-white p-10 text-center dark:border-gray-800 dark:bg-gray-900">
           <p className="text-sm text-gray-400 dark:text-gray-500">
             Nenhuma conversa ainda. Faça sua primeira pergunta na aba Chat.
           </p>
@@ -41,6 +41,7 @@ export function HistoryPage() {
           {turns.map((turn) => (
             <div
               key={turn.id}
+              data-testid="history-turn"
               className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900"
             >
               <div className="mb-3 flex items-start justify-between gap-4">

@@ -12,6 +12,7 @@ import { useMe, useLogout } from '@/features/auth/api/useAuth'
 import { DocumentsPage } from '@/features/documents/components/DocumentsPage'
 import { UploadPage } from '@/features/documents/components/UploadPage'
 import { ChatPage } from '@/features/chat/components/ChatPage'
+import { HistoryPage } from '@/features/chat/components/HistoryPage'
 import { isAuthenticated } from '@/lib/auth'
 import { useDarkMode } from '@/hooks/useDarkMode'
 import { Moon, Sun, FileText, Upload, MessageSquare, History, LogOut } from 'lucide-react'
@@ -129,15 +130,6 @@ function HomePage() {
   )
 }
 
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-20 text-center">
-      <p className="text-lg font-medium text-gray-700 dark:text-gray-300">{title}</p>
-      <p className="text-sm text-gray-400">Será implementado na próxima fase.</p>
-    </div>
-  )
-}
-
 // ── Árvore de rotas ──────────────────────────────────────────────────────────
 
 const rootRoute = createRootRoute({ component: RootLayout })
@@ -180,7 +172,7 @@ const historyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/history',
   beforeLoad: requireAuth,
-  component: () => <PlaceholderPage title="Histórico de Conversas" />,
+  component: HistoryPage,
 })
 
 const routeTree = rootRoute.addChildren([

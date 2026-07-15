@@ -8,9 +8,11 @@ import dev.ragplatform.infrastructure.security.UserPrincipal;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import dev.ragplatform.domain.model.ChatTurn;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,6 +21,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -45,6 +48,16 @@ public class ChatController {
     public ChatController(ChatService chatService, ObjectMapper objectMapper) {
         this.chatService = chatService;
         this.objectMapper = objectMapper;
+    }
+
+    // ── Histórico ────────────────────────────────────────────────────────────
+
+    @GetMapping("/history")
+    public ResponseEntity<List<ChatTurnResponse>> history(@AuthenticationPrincipal UserPrincipal user) {
+        List<ChatTurnResponse> turns = chatService.getHistory(user.getId()).stream()
+                .map(ChatTurnResponse::from)
+                .toList();
+        return ResponseEntity.ok(turns);
     }
 
     // ── Síncrono ─────────────────────────────────────────────────────────────
@@ -89,8 +102,10 @@ public class ChatController {
                 emitter.send(SseEmitter.event().name("sources").data(sourcesJson));
 
                 // 3. Tokens do LLM em streaming
+                var answerBuilder = new StringBuilder();
                 try (var tokens = chatService.streamTokens(ctx.systemPrompt(), question)) {
                     tokens.forEach(token -> {
+                        answerBuilder.append(token);
                         try {
                             emitter.send(SseEmitter.event().name("token").data(token));
                         } catch (IOException e) {
@@ -99,7 +114,10 @@ public class ChatController {
                     });
                 }
 
-                // 4. Sinal de conclusão
+                // 4. Persiste o turno completo
+                chatService.saveTurn(ownerId, question, answerBuilder.toString());
+
+                // 5. Sinal de conclusão
                 emitter.send(SseEmitter.event().name("done").data(""));
                 emitter.complete();
 

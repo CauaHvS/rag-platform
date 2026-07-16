@@ -3,14 +3,15 @@ package dev.ragplatform.infrastructure.ai.groq;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.ragplatform.domain.exception.AiUnavailableException;
 import dev.ragplatform.domain.port.out.ChatProvider;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.web.client.RestClientCustomizer;
 import org.springframework.http.MediaType;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Recover;
-import org.springframework.retry.annotation.Retryable;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -20,6 +21,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -29,7 +31,12 @@ import java.util.stream.Stream;
  * Ativo quando CHAT_PROVIDER=groq. Usa llama-3.3-70b-versatile por padrão.
  * A chave de API é injetada por env var GROQ_API_KEY — nunca em código nem no repo.
  *
- * chat()   — POST /chat/completions bloqueante via RestClient.
+ * Resiliência (configurada em application.yml / resilience4j):
+ *   - @Retry(name="groq-chat")      — 3 tentativas com backoff exponencial
+ *   - @CircuitBreaker(name="groq-chat") — abre após 50% de falhas em 10 chamadas;
+ *                                         fica aberto 30 s antes de ir para half-open
+ *
+ * chat()   — POST /chat/completions bloqueante via RestClient (timeout 10 s).
  * stream() — POST /chat/completions com stream:true via Java HttpClient;
  *            BodyHandlers.ofLines() mantém a conexão aberta enquanto o Stream
  *            não for fechado. O caller usa try-with-resources.
@@ -39,6 +46,9 @@ import java.util.stream.Stream;
 public class GroqChatProvider implements ChatProvider {
 
     private static final Logger log = LoggerFactory.getLogger(GroqChatProvider.class);
+
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration READ_TIMEOUT    = Duration.ofSeconds(10);
 
     private final RestClient restClient;
     private final HttpClient httpClient;
@@ -56,22 +66,33 @@ public class GroqChatProvider implements ChatProvider {
         this.apiKey = apiKey;
         this.model = model;
         this.objectMapper = objectMapper;
-        this.httpClient = HttpClient.newHttpClient();
+
+        var factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(CONNECT_TIMEOUT);
+        factory.setReadTimeout(READ_TIMEOUT);
+
         this.restClient = RestClient.builder()
+                .requestFactory(factory)
                 .baseUrl(baseUrl)
                 .defaultHeader("Authorization", "Bearer " + apiKey)
                 .defaultHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+                .build();
+
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(CONNECT_TIMEOUT)
                 .build();
     }
 
     // ── Bloqueante ────────────────────────────────────────────────────────────
 
+    /**
+     * Ordem dos aspectos: Retry (outer, order=3) → CircuitBreaker (inner, order=2) → método.
+     * Se CB estiver aberto lança CallNotPermittedException; o Retry está configurado para
+     * ignorar essa exceção (não tenta novamente), e o fallback é chamado imediatamente.
+     */
     @Override
-    @Retryable(
-            retryFor = {RuntimeException.class},
-            maxAttempts = 3,
-            backoff = @Backoff(delay = 500, multiplier = 2, maxDelay = 4000)
-    )
+    @CircuitBreaker(name = "groq-chat")
+    @Retry(name = "groq-chat", fallbackMethod = "chatFallback")
     public String chat(String systemPrompt, String userMessage) {
         var request = new SyncRequest(model,
                 List.of(new Message("system", systemPrompt), new Message("user", userMessage)),
@@ -93,7 +114,9 @@ public class GroqChatProvider implements ChatProvider {
 
     // ── Streaming ─────────────────────────────────────────────────────────────
 
+    /** CB protege a abertura da conexão; falha lazy do stream é responsabilidade do caller. */
     @Override
+    @CircuitBreaker(name = "groq-chat", fallbackMethod = "streamFallback")
     public Stream<String> stream(String systemPrompt, String userMessage) {
         String body;
         try {
@@ -112,6 +135,7 @@ public class GroqChatProvider implements ChatProvider {
                             .uri(URI.create(baseUrl + "/chat/completions"))
                             .header("Authorization", "Bearer " + apiKey)
                             .header("Content-Type", "application/json")
+                            .timeout(READ_TIMEOUT)
                             .POST(HttpRequest.BodyPublishers.ofString(body))
                             .build(),
                     HttpResponse.BodyHandlers.ofLines());
@@ -120,8 +144,6 @@ public class GroqChatProvider implements ChatProvider {
                 throw new IllegalStateException("Groq stream retornou HTTP " + response.statusCode());
             }
 
-            // Cada linha SSE: "data: {...}" ou "data: [DONE]"
-            // Extrai choices[0].delta.content de cada chunk
             return response.body()
                     .filter(line -> line.startsWith("data: ") && !line.equals("data: [DONE]"))
                     .map(line -> extractToken(line.substring(6)))
@@ -135,11 +157,20 @@ public class GroqChatProvider implements ChatProvider {
         }
     }
 
-    @Recover
-    public String chatFallback(RuntimeException ex, String systemPrompt, String userMessage) {
-        log.error("Groq chat indisponível após retries: {}", ex.getMessage());
-        throw new AiUnavailableException("LLM indisponível após 3 tentativas.", ex);
+    // ── Fallbacks ─────────────────────────────────────────────────────────────
+
+    /** Chamado após esgotar retries OU quando o circuit breaker está aberto. */
+    public String chatFallback(String systemPrompt, String userMessage, Throwable ex) {
+        log.error("Groq chat indisponível: {}", ex.getMessage());
+        throw new AiUnavailableException("LLM temporariamente indisponível. Tente novamente em instantes.", ex);
     }
+
+    public Stream<String> streamFallback(String systemPrompt, String userMessage, Throwable ex) {
+        log.error("Groq stream indisponível: {}", ex.getMessage());
+        throw new AiUnavailableException("LLM temporariamente indisponível para streaming.", ex);
+    }
+
+    // ── Extração de token SSE ─────────────────────────────────────────────────
 
     private String extractToken(String jsonChunk) {
         try {
@@ -155,11 +186,8 @@ public class GroqChatProvider implements ChatProvider {
     // ── DTOs internos ────────────────────────────────────────────────────────
 
     record SyncRequest(String model, List<Message> messages, double temperature) {}
-
     record StreamRequest(String model, List<Message> messages, double temperature, boolean stream) {}
-
     record Message(String role, String content) {}
-
     record ChatResponse(List<Choice> choices) {
         record Choice(Message message) {}
     }

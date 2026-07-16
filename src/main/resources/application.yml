@@ -49,10 +49,13 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,circuitbreakers,retries
   endpoint:
     health:
       show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
   tracing:
     enabled: true
     sampling:
@@ -93,6 +96,44 @@ app:
     chat:
       # Máximo de requisições por usuário por minuto para endpoints /api/chat/**
       max-per-minute: ${CHAT_RATE_LIMIT:20}
+
+# ── Resiliência (Resilience4j) ────────────────────────────────────────────────
+resilience4j:
+  circuitbreaker:
+    instances:
+      groq-chat:
+        # Abre o CB quando >= 50% de 10 chamadas falham ou são lentas (> 5 s)
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        slowCallDurationThreshold: 5s
+        slowCallRateThreshold: 50
+        # Aguarda 30 s aberto antes de tentar half-open com 3 chamadas-teste
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+        registerHealthIndicator: true
+      ollama-embed:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 5
+        failureRateThreshold: 60
+        waitDurationInOpenState: 20s
+        permittedNumberOfCallsInHalfOpenState: 2
+        registerHealthIndicator: true
+  retry:
+    instances:
+      groq-chat:
+        maxAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        # Não tenta novamente quando o CB já está aberto (CallNotPermittedException)
+        ignoreExceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+      ollama-embed:
+        maxAttempts: 2
+        waitDuration: 500ms
+        ignoreExceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
 
 logging:
   # Inclui traceId e spanId em cada linha de log para correlação com Zipkin

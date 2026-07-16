@@ -13,12 +13,15 @@ métricas quantitativas, isolamento multiusuário, resiliência e observabilidad
   e MRR contra um golden set — "melhorou" é afirmação com número, não opinião.
 - Isolamento multiusuário garantido no SQL: filtro `owner_id` em toda query, testado
   com cenário A-não-vê-B.
-- Resiliência nas chamadas ao LLM: Spring Retry com backoff exponencial, circuit
-  breaker via fallback, 503 com ProblemDetail (RFC 9457) em vez de NPE.
+- Resiliência com Resilience4j: Circuit Breaker (abre após 50% de falhas) + Retry
+  com backoff exponencial + fallback gracioso diferenciado — embedding de query retorna
+  vetor zero (busca continua via BM25); embedding de ingestão falha explicitamente
+  (documento vai para FAILED, não grava vetor inválido).
 - Cache de embeddings de consulta no Redis (SHA-256 + float[] Base64 little-endian,
   TTL 1h) e rate limit por usuário (Redis INCR/EXPIRE, 429 com Retry-After).
-- Observabilidade: métricas Micrometer (ai.chat.requests, ai.chat.tokens.estimated,
-  ai.embedding.requests) expostas via `/actuator/metrics`.
+- Observabilidade: tokens reais por usuário (`ai.tokens{provider,model,user,type}`),
+  custo estimado em USD (`ai.cost.usd`), hit rate do cache (`ai.embedding.cache.hits/misses`),
+  circuit breaker state (`/actuator/circuitbreakers`), tracing distribuído (Zipkin).
 - Streaming token a token via Server-Sent Events com virtual threads.
 - Frontend React com upload + polling de status + chat com streaming + histórico.
 
@@ -29,13 +32,13 @@ métricas quantitativas, isolamento multiusuário, resiliência e observabilidad
 | Backend | Java 21, Spring Boot 3.5, Maven |
 | Banco | PostgreSQL 16 + pgvector |
 | Cache / Rate limit | Redis 7 |
-| Embeddings (dev) | Ollama + nomic-embed-text-v1 (768 dim) |
-| Embeddings (prod) | OpenAI text-embedding-3-small (dimensions=768) |
+| Embeddings | Ollama — nomic-embed-text (768 dims); intercambiável sem refatoração |
 | Chat | Groq — llama-3.3-70b-versatile |
+| Resiliência | Resilience4j 2.3 (Circuit Breaker + Retry + fallback) |
 | Migrations | Flyway |
-| Testes | JUnit 5 + Testcontainers + AssertJ |
-| Frontend | React 19, Vite, TypeScript, Tailwind, TanStack Query/Router |
-| Infra | Docker, Docker Compose, GitHub Actions |
+| Testes | JUnit 5 + Testcontainers (58 testes) + AssertJ + Playwright (E2E) |
+| Frontend | React 19, Vite, TypeScript, Tailwind v4, TanStack Query/Router |
+| Infra | Docker Compose, Kubernetes + Helm, GitHub Actions CI (3 jobs) |
 
 ## Arquitetura
 
@@ -160,11 +163,12 @@ Testcontainers. Não é necessário nenhuma infra rodando para executá-los.
 
 | Variável | Descrição | Padrão |
 |---|---|---|
-| `JWT_SECRET` | Chave HMAC-SHA256 para JWT (base64, 32 bytes) | **Obrigatório** |
-| `GROQ_API_KEY` | Chave da API Groq | **Obrigatório** |
-| `EMBEDDING_PROVIDER` | `ollama` ou `openai` | `ollama` |
-| `OPENAI_API_KEY` | Chave OpenAI (se EMBEDDING_PROVIDER=openai) | — |
+| `JWT_SECRET` | Chave HMAC-SHA256 para JWT (base64, 32 bytes) | **Obrigatório em prod** |
+| `GROQ_API_KEY` | Chave da API Groq | **Obrigatório** com `CHAT_PROVIDER=groq` |
+| `CHAT_PROVIDER` | `fake` (testes) ou `groq` | `fake` |
+| `EMBEDDING_PROVIDER` | `fake` (testes) ou `ollama` | `fake` |
 | `EMBEDDING_BASE_URL` | URL base do Ollama | `http://localhost:11434` |
+| `EMBEDDING_MODEL` | Modelo de embedding | `nomic-embed-text` |
 | `DATABASE_URL` | JDBC URL do PostgreSQL | `jdbc:postgresql://localhost:5432/ragplatform` |
 | `DATABASE_USERNAME` | Usuário do banco | `ragplatform` |
 | `DATABASE_PASSWORD` | Senha do banco | `ragplatform` |
@@ -172,6 +176,7 @@ Testcontainers. Não é necessário nenhuma infra rodando para executá-los.
 | `REDIS_PORT` | Porta do Redis | `6379` |
 | `STORAGE_LOCAL_PATH` | Diretório de uploads | `./uploads` |
 | `CHAT_RATE_LIMIT` | Max requests de chat por minuto por usuário | `20` |
+| `ZIPKIN_ENDPOINT` | Endpoint do Zipkin para tracing | `http://localhost:9411/api/v2/spans` |
 
 **API keys nunca no código nem no repositório.**
 
@@ -233,28 +238,57 @@ Pergunta
   └─ 5. Salvar ChatTurn (pergunta + resposta) no banco
 ```
 
-## Avaliação de qualidade
+## Avaliação de qualidade de recuperação
 
 ```bash
 # Rodar avaliação contra golden set
 ./mvnw verify -Dit.test="EvaluationIT" -Dlogging.level.dev.ragplatform=INFO
 ```
 
-Resultados atuais (modo híbrido, golden set com 15 perguntas sobre 3 documentos):
-- Recall@5: 1.0 (todas as perguntas encontraram o documento correto no top-5)
-- MRR: 0.667 (posição média da primeira resposta correta)
-- Hybrid Recall >= Vector Recall: confirmado
+Golden set: 3 documentos, 5 queries. Thresholds são gates do build (CI falha se não atingidos).
+
+| Configuração | Recall@5 | MRR | Observação |
+|---|---|---|---|
+| Híbrida (BM25 + vetorial, RRF) | ≥ 0.80 | ≥ 0.60 | Gate do CI |
+| Vetorial pura | baseline | baseline | Comparação |
+
+> Com `FakeEmbeddingProvider` (vetores zero), o BM25 responde sozinho — resultado determinístico.
+> Em produção com Ollama `nomic-embed-text`, a componente vetorial contribui para queries semânticas
+> onde os termos exatos diferem do documento. Recall@5 empírico tende a ser maior.
+
+## Métricas de observabilidade
+
+Expostas em `/actuator/metrics/<nome>` (Micrometer → Prometheus-compatível):
+
+| Métrica | Tags | Descrição |
+|---|---|---|
+| `ai.tokens` | provider, model, user, type=prompt\|completion | Tokens reais reportados pelo provider |
+| `ai.cost.usd` | provider, model, user | Custo estimado em USD |
+| `ai.chat.requests` | — | Total de requisições de chat |
+| `ai.chat.tokens.estimated` | — | Tokens estimados (fallback para providers sem usage) |
+| `ai.embedding.requests` | — | Textos enviados ao provedor de embedding (cache miss) |
+| `ai.embedding.cache.hits` | — | Queries servidas pelo cache Redis |
+| `ai.embedding.cache.misses` | — | Queries que foram ao provedor |
+
+Hit rate do cache: `cache.hits / (cache.hits + cache.misses)`
+
+Estado dos circuit breakers: `/actuator/circuitbreakers`
+Estado de retries: `/actuator/retries`
+Tracing: Zipkin em `http://localhost:9411`
 
 ## Decisões de arquitetura (ADRs)
 
 | ADR | Decisão |
 |---|---|
 | [001](docs/adr/001-arquitetura-hexagonal.md) | Arquitetura Hexagonal (Ports and Adapters) |
-| [002](docs/adr/002-provedores-ia.md) | ChatProvider=Groq, EmbeddingProvider=Ollama/OpenAI |
+| [002](docs/adr/002-provedores-ia.md) | ChatProvider=Groq, EmbeddingProvider=Ollama (local) |
 | [003](docs/adr/003-estrategia-chunking.md) | Chunking por janela deslizante (1500 chars, overlap 200) |
 | [004](docs/adr/004-indice-pgvector.md) | Índice HNSW (m=16, ef_construction=64) para busca coseno |
 | [005](docs/adr/005-busca-hibrida.md) | Busca híbrida vetorial + BM25 com RRF |
 | [006](docs/adr/006-controle-de-custo.md) | Cache de embedding + rate limit + métricas de token |
+| [007](docs/adr/007-row-level-security.md) | Row Level Security no PostgreSQL para isolamento multiusuário |
+| [008](docs/adr/008-estrategia-deploy-kubernetes.md) | Deploy em Kubernetes com Helm chart |
+| [009](docs/adr/009-estrategia-resiliencia-ia.md) | Resilience4j: Circuit Breaker + Retry + fallback gracioso |
 
 ## Estrutura do projeto
 
@@ -283,9 +317,10 @@ rag-platform/
 │   ├── Dockerfile               # Node 22 build → nginx runtime
 │   └── nginx.conf               # Proxy /api/ e /auth/ para backend, SSE config
 ├── docs/
-│   ├── adr/                     # Architecture Decision Records
-│   └── api/openapi.yml          # Spec OpenAPI 3.1 completa
+│   └── adr/                     # 9 Architecture Decision Records (001–009)
+├── k8s/helm/rag-platform/       # Helm chart: Deployment, Service, Ingress, HPA
+├── e2e/                         # Playwright — testes E2E ponta a ponta
 ├── Dockerfile                   # Maven build → JRE 21 alpine, non-root user
-├── docker-compose.yml           # postgres + redis + app + frontend
-└── .github/workflows/ci.yml     # CI: backend (verify) + frontend (build + tsc)
+├── docker-compose.yml           # postgres + redis + zipkin + app + frontend
+└── .github/workflows/ci.yml     # CI: backend (verify) + frontend (tsc+build) + helm lint
 ```

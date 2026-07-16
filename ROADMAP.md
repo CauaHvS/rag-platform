@@ -3,6 +3,28 @@
 Full stack, fatias verticais, contract-first. Cada fatia tem o prompt para colar no
 Claude Code, o critério de validação e termina em commit.
 
+## Estado atual — Projeto concluído ✓
+
+| Fase | Entregável | Status |
+|---|---|---|
+| 0 — Fundação | ADRs 001/002, esqueleto Spring Boot + pgvector, frontend + mockups | ✓ Concluído |
+| 1 — Auth | JWT stateless, rotas protegidas, login/registro ponta a ponta | ✓ Concluído |
+| 2 — Ingestão | Upload + máquina de estados, extração texto/OCR, chunking, embeddings batch | ✓ Concluído |
+| 3 — Recuperação | Busca vetorial + isolamento multiusuário, busca híbrida BM25+RRF | ✓ Concluído |
+| 4 — Chat RAG | Pipeline completo com fontes, streaming SSE, tela de chat | ✓ Concluído |
+| 5 — Avaliação | Golden set + Recall@5/MRR (EvaluationIT), groundedness LLM-as-judge | ✓ Concluído |
+| 6 — Gestão/Custo | Histórico, exclusão com cascata, tokens reais + custo USD, hit/miss cache | ✓ Concluído |
+| 7 — Empacotamento | Docker multi-stage + compose, CI GitHub Actions, E2E Playwright | ✓ Concluído |
+| 8 — Documentação | README completo, 9 ADRs, Swagger, métricas de observabilidade | ✓ Concluído |
+
+**Resiliência (ADR 009):** Resilience4j — Circuit Breaker + Retry + fallback gracioso
+diferenciado (embed de query → vetor zero; embed de ingestão → FAILED).
+
+**Avaliação quantitativa:** Recall@5 ≥ 0.80, MRR ≥ 0.60 como gate do CI.
+Groundedness ≥ 80% (LLM-as-judge, execução manual com GROQ_API_KEY).
+
+---
+
 Diferenciais do projeto (onde o roadmap é denso): **ingestão assíncrona resiliente
 (Fase 2)**, **recuperação híbrida com rerank (Fase 3)**, **avaliação com métricas
 (Fase 5)** e **isolamento multiusuário provado por teste (Fase 3)**.

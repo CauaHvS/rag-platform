@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
-import { FileText, Upload, AlertCircle } from 'lucide-react'
-import { useDocuments } from '../api/useDocuments'
+import { FileText, Upload, AlertCircle, Trash2 } from 'lucide-react'
+import { useDocuments, useDeleteDocument } from '../api/useDocuments'
 import { StatusBadge } from './StatusBadge'
 
 function formatBytes(bytes: number): string {
@@ -16,8 +16,16 @@ function formatDate(iso: string): string {
   }).format(new Date(iso))
 }
 
+const TRANSITORIO = ['PENDING', 'EXTRACTING', 'CHUNKING', 'EMBEDDING']
+
 export function DocumentsPage() {
   const { data: docs, isLoading, isError } = useDocuments()
+  const deleteMutation = useDeleteDocument()
+
+  function handleDelete(id: string, name: string) {
+    if (!confirm(`Excluir "${name}"? Todos os chunks e vetores serão removidos.`)) return
+    deleteMutation.mutate(id)
+  }
 
   if (isLoading) {
     return (
@@ -71,6 +79,7 @@ export function DocumentsPage() {
                 <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Tamanho</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Status</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Enviado em</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -95,6 +104,16 @@ export function DocumentsPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
                     {formatDate(doc.createdAt)}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={() => handleDelete(doc.id, doc.originalName)}
+                      disabled={TRANSITORIO.includes(doc.status) || deleteMutation.isPending}
+                      title="Excluir documento"
+                      className="rounded p-1 text-gray-400 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </td>
                 </tr>
               ))}

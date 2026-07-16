@@ -53,3 +53,15 @@ export function useUploadDocument() {
     },
   })
 }
+
+export function useDeleteDocument() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await http.delete(`/api/documents/${id}`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['documents'] })
+    },
+  })
+}

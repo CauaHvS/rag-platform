@@ -193,6 +193,7 @@ Endpoints principais:
 | POST | `/api/documents` | Upload de documento (202 + status PENDING) |
 | GET | `/api/documents` | Listar documentos do usuário |
 | GET | `/api/documents/{id}` | Consultar status da ingestão |
+| DELETE | `/api/documents/{id}` | Excluir documento (cascata: chunks + vetores + arquivo) |
 | GET | `/api/search?q=...&k=5&mode=hybrid` | Busca híbrida |
 | POST | `/api/chat` | Pergunta RAG (resposta completa) |
 | POST | `/api/chat/stream` | Pergunta RAG (streaming SSE token a token) |
@@ -255,6 +256,25 @@ Golden set: 3 documentos, 5 queries. Thresholds são gates do build (CI falha se
 > Com `FakeEmbeddingProvider` (vetores zero), o BM25 responde sozinho — resultado determinístico.
 > Em produção com Ollama `nomic-embed-text`, a componente vetorial contribui para queries semânticas
 > onde os termos exatos diferem do documento. Recall@5 empírico tende a ser maior.
+
+## Avaliação de groundedness (LLM-as-judge)
+
+```bash
+# Requer GROQ_API_KEY; pulado automaticamente em CI (sem cota)
+export GROQ_API_KEY=<sua-chave>
+./mvnw verify
+```
+
+`GroundednessIT` avalia se as respostas geradas estão fundamentadas nos trechos
+recuperados, usando o próprio LLM como juiz (LLM-as-judge). Metodologia:
+
+- 5 casos derivados do golden set (4 fundamentadas + 1 com alucinação explícita)
+- Threshold mínimo: taxa de groundedness ≥ 80% (4/5 fundamentadas)
+- O juiz recebe contexto + pergunta + resposta e retorna `VEREDICTO: SIM/NÃO`
+
+**Limitação conhecida:** LLM-as-judge é ruidoso — o mesmo par pode receber veredictos
+diferentes em execuções consecutivas. Use como indicador de regressão (piorou/melhorou),
+não como nota absoluta. Ver ADR 009.
 
 ## Métricas de observabilidade
 

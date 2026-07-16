@@ -33,6 +33,11 @@ public class DocumentRepositoryAdapter implements DocumentRepository {
                 .stream().map(this::toDomain).toList();
     }
 
+    @Override
+    public void delete(UUID id) {
+        jpaRepo.deleteById(id);
+    }
+
     private DocumentJpaEntity toEntity(Document d) {
         var e = new DocumentJpaEntity();
         e.setId(d.id());

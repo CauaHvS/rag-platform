@@ -11,4 +11,6 @@ public interface DocumentRepository {
     Document save(Document document);
     Optional<Document> findByIdAndOwnerId(UUID id, UUID ownerId);
     List<Document> findAllByOwnerId(UUID ownerId);
+    /** Remove o documento. Não verifica propriedade — a verificação ocorre no caso de uso. */
+    void delete(UUID id);
 }

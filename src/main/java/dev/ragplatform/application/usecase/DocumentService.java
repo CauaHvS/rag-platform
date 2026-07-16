@@ -4,8 +4,11 @@ import dev.ragplatform.domain.event.DocumentUploadedEvent;
 import dev.ragplatform.domain.exception.DocumentNotFoundException;
 import dev.ragplatform.domain.exception.UnsupportedDocumentTypeException;
 import dev.ragplatform.domain.model.Document;
+import dev.ragplatform.domain.port.out.ChunkRepository;
 import dev.ragplatform.domain.port.out.DocumentRepository;
 import dev.ragplatform.domain.port.out.FileStorage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +22,8 @@ import java.util.UUID;
 @Transactional
 public class DocumentService {
 
+    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
+
     private static final Set<String> TIPOS_PERMITIDOS = Set.of(
             "application/pdf",
             "text/plain",
@@ -26,12 +31,16 @@ public class DocumentService {
     );
 
     private final DocumentRepository documentRepository;
+    private final ChunkRepository chunkRepository;
     private final FileStorage fileStorage;
     private final ApplicationEventPublisher eventPublisher;
 
-    public DocumentService(DocumentRepository documentRepository, FileStorage fileStorage,
+    public DocumentService(DocumentRepository documentRepository,
+                           ChunkRepository chunkRepository,
+                           FileStorage fileStorage,
                            ApplicationEventPublisher eventPublisher) {
         this.documentRepository = documentRepository;
+        this.chunkRepository = chunkRepository;
         this.fileStorage = fileStorage;
         this.eventPublisher = eventPublisher;
     }
@@ -69,5 +78,19 @@ public class DocumentService {
     @Transactional(readOnly = true)
     public List<Document> listByOwner(UUID ownerId) {
         return documentRepository.findAllByOwnerId(ownerId);
+    }
+
+    /**
+     * Remove o documento, seus chunks (+ vetores em cascata via FK) e o arquivo em disco.
+     * Verifica a propriedade antes de apagar — lança {@link DocumentNotFoundException} se o
+     * documento não existir ou não pertencer ao ownerId informado (sem vazar informação).
+     */
+    public void delete(UUID id, UUID ownerId) {
+        Document doc = findByIdAndOwner(id, ownerId); // garante propriedade
+        log.info("Excluindo documento id={} ownerId={}", id, ownerId);
+
+        chunkRepository.deleteByDocumentId(id);       // chunks + vetores (FK cascade)
+        fileStorage.delete(doc.storagePath());         // arquivo em disco
+        documentRepository.delete(id);                // registro do documento
     }
 }

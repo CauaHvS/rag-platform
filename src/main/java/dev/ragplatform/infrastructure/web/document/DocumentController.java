@@ -53,4 +53,16 @@ public class DocumentController {
             @PathVariable UUID id) {
         return DocumentResponse.from(documentService.findByIdAndOwner(id, principal.getId()));
     }
+
+    /**
+     * DELETE /api/documents/{id} — exclui documento, chunks e arquivo.
+     * Retorna 204 No Content. 404 se o documento não existir ou não pertencer ao usuário.
+     */
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID id) {
+        documentService.delete(id, principal.getId());
+    }
 }

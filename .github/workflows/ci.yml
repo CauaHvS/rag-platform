@@ -55,3 +55,41 @@ jobs:
 
       - name: Type check
         run: npx tsc --noEmit
+
+  helm:
+    name: Helm — Lint do chart
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Helm setup
+        uses: azure/setup-helm@v4
+
+      - name: Baixa dependências do chart (bitnami/redis)
+        run: helm dependency build k8s/helm/rag-platform
+
+      - name: Lint (dev)
+        run: |
+          helm lint k8s/helm/rag-platform \
+            -f k8s/helm/rag-platform/values-dev.yaml \
+            --set secrets.jwtSecret=dGVzdA== \
+            --set secrets.postgresPassword=test
+
+      - name: Lint (prod)
+        run: |
+          helm lint k8s/helm/rag-platform \
+            -f k8s/helm/rag-platform/values-prod.yaml \
+            --set secrets.jwtSecret=dGVzdA== \
+            --set secrets.postgresPassword=test \
+            --set secrets.groqApiKey=test
+
+      - name: Template dry-run (prod)
+        run: |
+          helm template rag k8s/helm/rag-platform \
+            -f k8s/helm/rag-platform/values-prod.yaml \
+            --set secrets.jwtSecret=dGVzdA== \
+            --set secrets.postgresPassword=test \
+            --set secrets.groqApiKey=test \
+            > /dev/null

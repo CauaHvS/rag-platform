@@ -3,15 +3,17 @@ package dev.ragplatform.infrastructure.ai.groq;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.ragplatform.domain.exception.AiUnavailableException;
 import dev.ragplatform.domain.port.out.ChatProvider;
+import dev.ragplatform.infrastructure.observability.AiMetrics;
+import dev.ragplatform.infrastructure.security.UserPrincipal;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.web.client.RestClientCustomizer;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -23,6 +25,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
@@ -50,9 +53,12 @@ public class GroqChatProvider implements ChatProvider {
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration READ_TIMEOUT    = Duration.ofSeconds(10);
 
+    private static final String PROVIDER = "groq";
+
     private final RestClient restClient;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
+    private final AiMetrics aiMetrics;
     private final String model;
     private final String baseUrl;
     private final String apiKey;
@@ -61,11 +67,13 @@ public class GroqChatProvider implements ChatProvider {
             @Value("${app.chat.base-url}") String baseUrl,
             @Value("${app.chat.api-key}") String apiKey,
             @Value("${app.chat.model}") String model,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            AiMetrics aiMetrics) {
         this.baseUrl = baseUrl;
         this.apiKey = apiKey;
         this.model = model;
         this.objectMapper = objectMapper;
+        this.aiMetrics = aiMetrics;
 
         var factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(CONNECT_TIMEOUT);
@@ -109,6 +117,10 @@ public class GroqChatProvider implements ChatProvider {
         if (response == null || response.choices() == null || response.choices().isEmpty()) {
             throw new IllegalStateException("Groq retornou resposta vazia");
         }
+        if (response.usage() != null) {
+            aiMetrics.recordChatTokens(PROVIDER, model, currentUserId(),
+                    response.usage().prompt_tokens(), response.usage().completion_tokens());
+        }
         return response.choices().getFirst().message().content();
     }
 
@@ -122,7 +134,7 @@ public class GroqChatProvider implements ChatProvider {
         try {
             body = objectMapper.writeValueAsString(new StreamRequest(model,
                     List.of(new Message("system", systemPrompt), new Message("user", userMessage)),
-                    0.1, true));
+                    0.1, true, new StreamOptions(true)));
         } catch (IOException e) {
             throw new UncheckedIOException("Falha ao serializar request Groq", e);
         }
@@ -144,10 +156,20 @@ public class GroqChatProvider implements ChatProvider {
                 throw new IllegalStateException("Groq stream retornou HTTP " + response.statusCode());
             }
 
+            AtomicReference<StreamUsage> usageRef = new AtomicReference<>();
+            String userId = currentUserId();
             return response.body()
                     .filter(line -> line.startsWith("data: ") && !line.equals("data: [DONE]"))
+                    .peek(line -> captureStreamUsage(line.substring(6), usageRef))
                     .map(line -> extractToken(line.substring(6)))
-                    .filter(token -> !token.isEmpty());
+                    .filter(token -> !token.isEmpty())
+                    .onClose(() -> {
+                        StreamUsage u = usageRef.get();
+                        if (u != null) {
+                            aiMetrics.recordChatTokens(PROVIDER, model, userId,
+                                    u.prompt_tokens(), u.completion_tokens());
+                        }
+                    });
 
         } catch (IOException e) {
             throw new UncheckedIOException("Falha na chamada streaming ao Groq", e);
@@ -175,7 +197,9 @@ public class GroqChatProvider implements ChatProvider {
     private String extractToken(String jsonChunk) {
         try {
             var node = objectMapper.readTree(jsonChunk);
-            var content = node.path("choices").get(0).path("delta").path("content");
+            var choices = node.path("choices");
+            if (choices.isEmpty()) return "";
+            var content = choices.get(0).path("delta").path("content");
             return content.isMissingNode() || content.isNull() ? "" : content.asText();
         } catch (Exception e) {
             log.debug("Chunk SSE não parseável: {}", jsonChunk);
@@ -183,12 +207,40 @@ public class GroqChatProvider implements ChatProvider {
         }
     }
 
+    /**
+     * Detecta o chunk de usage (choices vazio + campo "usage" presente) e armazena na ref.
+     * Enviado pelo Groq quando stream_options.include_usage=true.
+     */
+    private void captureStreamUsage(String jsonChunk, AtomicReference<StreamUsage> ref) {
+        try {
+            var node = objectMapper.readTree(jsonChunk);
+            var usageNode = node.path("usage");
+            if (!usageNode.isMissingNode() && node.path("choices").isEmpty()) {
+                ref.set(new StreamUsage(
+                        usageNode.path("prompt_tokens").asInt(),
+                        usageNode.path("completion_tokens").asInt()));
+            }
+        } catch (Exception ignored) {}
+    }
+
+    /** Retorna o UUID do usuário autenticado no contexto atual, ou "anonymous". */
+    private static String currentUserId() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return "anonymous";
+        if (auth.getPrincipal() instanceof UserPrincipal up) return up.getId().toString();
+        return auth.getName();
+    }
+
     // ── DTOs internos ────────────────────────────────────────────────────────
 
     record SyncRequest(String model, List<Message> messages, double temperature) {}
-    record StreamRequest(String model, List<Message> messages, double temperature, boolean stream) {}
+    record StreamRequest(String model, List<Message> messages, double temperature,
+                         boolean stream, StreamOptions stream_options) {}
+    record StreamOptions(boolean include_usage) {}
     record Message(String role, String content) {}
-    record ChatResponse(List<Choice> choices) {
+    record ChatResponse(List<Choice> choices, Usage usage) {
         record Choice(Message message) {}
     }
+    record Usage(int prompt_tokens, int completion_tokens, int total_tokens) {}
+    record StreamUsage(int prompt_tokens, int completion_tokens) {}
 }

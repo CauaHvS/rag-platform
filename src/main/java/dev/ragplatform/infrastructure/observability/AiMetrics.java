@@ -102,11 +102,27 @@ public class AiMetrics {
 
     /**
      * Registra chamadas de embedding (uma por texto enviado ao provedor).
+     * Chamado apenas em cache MISS — quando o provedor é de fato invocado.
      *
      * @param count número de textos processados neste lote
      */
     public void recordEmbeddingCall(int count) {
         embeddingRequestsCounter.increment(count);
+        Counter.builder("ai.embedding.cache.misses")
+                .description("Queries de embedding que não estavam em cache e foram enviadas ao provedor")
+                .register(registry)
+                .increment(count);
+    }
+
+    /**
+     * Registra um cache HIT de embedding de query.
+     * Chamado quando a query já estava em cache e o provedor não foi invocado.
+     */
+    public void recordEmbeddingCacheHit() {
+        Counter.builder("ai.embedding.cache.hits")
+                .description("Queries de embedding servidas pelo cache Redis (provedor não invocado)")
+                .register(registry)
+                .increment();
     }
 
     /** Custo estimado em USD a partir de tokens reais e tabela de preços de referência. */

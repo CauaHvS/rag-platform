@@ -109,12 +109,15 @@ public class ChatService {
 
     /** Retorna embedding da query, usando cache Redis quando disponível. */
     private float[] cachedEmbedQuery(String question) {
-        return embeddingQueryCache.get(question).orElseGet(() -> {
-            float[] embedding = embeddingProvider.embedQuery(question);
-            embeddingQueryCache.put(question, embedding);
-            aiMetrics.recordEmbeddingCall(1);
-            return embedding;
-        });
+        var cached = embeddingQueryCache.get(question);
+        if (cached.isPresent()) {
+            aiMetrics.recordEmbeddingCacheHit();
+            return cached.get();
+        }
+        float[] embedding = embeddingProvider.embedQuery(question);
+        embeddingQueryCache.put(question, embedding);
+        aiMetrics.recordEmbeddingCall(1);
+        return embedding;
     }
 
     private String buildContext(List<SimilarChunk> sources) {

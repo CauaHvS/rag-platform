@@ -67,6 +67,9 @@ jobs:
       - name: Helm setup
         uses: azure/setup-helm@v4
 
+      - name: Adiciona repositório Bitnami
+        run: helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update
+
       - name: Baixa dependências do chart (bitnami/redis)
         run: helm dependency build k8s/helm/rag-platform
 
